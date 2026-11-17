@@ -1,0 +1,8 @@
+{"type":"api-request-blob","hash":"compact-user","message":{"role":"user","content":[{"type":"text","text":"Read the compact session note."}]}}
+{"type":"api-request","querySource":"repl_main_thread","tail":["compact-user"],"shapeHash":"compact-shape"}
+{"type":"api-request-shape","shapeHash":"compact-shape","shape":{"system":[{"type":"text","text":"You are Claude Code in a compact synthetic session."}],"tools":[{"name":"Read","description":"Read one local file."}]}}
+{"type":"attachment","attachment":{"type":"environment","content":"Working directory: /Users/example/projects/demo","snapshot":{"workingDirectory":"/Users/example/projects/demo"}}}
+{"type":"attachment","attachment":{"type":"compact_boundary","content":"Earlier synthetic context was compacted."}}
+{"type":"assistant","isSidechain":false,"message":{"id":"compact-a1","role":"assistant","content":[{"type":"tool_use","id":"compact-read","name":"Read","input":{"file_path":"/Users/example/projects/demo/compact.txt"}}],"usage":{"input_tokens":800}}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"compact-read","content":"A short note after compaction."}]}}
+{"type":"assistant","isSidechain":false,"message":{"id":"compact-a2","role":"assistant","content":[{"type":"text","text":"Done."}],"usage":{"input_tokens":1100}}}

@@ -1,0 +1,30 @@
+{
+  "name": "show-context",
+  "version": "0.1.0",
+  "description": "Show what one Claude Code session read in a local static page.",
+  "type": "module",
+  "keywords": [
+    "claude-code",
+    "context",
+    "tokens"
+  ],
+  "license": "MIT",
+  "repository": "git+https://github.com/bernatsampera/show-context.git",
+  "homepage": "https://github.com/bernatsampera/show-context#readme",
+  "bugs": "https://github.com/bernatsampera/show-context/issues",
+  "scripts": {
+    "test": "node --test e2e/*.test.mjs"
+  },
+  "bin": {
+    "show-context": "bin/show-context.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,6 @@
+{"type":"attachment","attachment":{"type":"environment","content":"Working directory: /Users/example/projects/demo","snapshot":{"workingDirectory":"/Users/example/projects/demo"}}}
+{"type":"attachment","attachment":{"type":"instructions","files":[{"path":"~/.claude/CLAUDE.md","content":"Keep old sessions local."}]}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":"Read the old format note."}}
+{"type":"assistant","isSidechain":false,"message":{"id":"old-a1","role":"assistant","content":[{"type":"tool_use","id":"old-read","name":"Read","input":{"file_path":"/Users/example/projects/demo/old.txt"}}],"usage":{"input_tokens":600}}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"old-read","content":"Old format content."}]}}
+{"type":"assistant","isSidechain":false,"message":{"id":"old-a2","role":"assistant","content":[{"type":"text","text":"Done."}],"usage":{"input_tokens":850}}}
