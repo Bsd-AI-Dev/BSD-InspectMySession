@@ -1,7 +1,7 @@
 {
   "name": "show-context",
-  "version": "0.1.0",
-  "description": "Show what one Claude Code session read in a local static page.",
+  "version": "0.2.0",
+  "description": "Show a Claude Code conversation and the context it read.",
   "type": "module",
   "keywords": [
     "claude-code",

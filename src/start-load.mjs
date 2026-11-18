@@ -212,8 +212,12 @@ export function buildStartLoad(records, total, options = {}) {
   const instructions = parts.find(part => part.key === 'instructions');
   if (instructions?.items?.length) exactShares(instructions.items, instructions.size);
   for (const part of parts) {
+    part.ref = `s-${part.key}`;
     delete part.charCount;
-    for (const item of part.items || []) delete item.charCount;
+    for (const [index, item] of (part.items || []).entries()) {
+      item.ref = `s-${part.key}-${index}`;
+      delete item.charCount;
+    }
   }
   return { total: Math.max(0, Math.round(total)), parts };
 }

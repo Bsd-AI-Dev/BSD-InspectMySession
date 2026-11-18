@@ -203,12 +203,16 @@ function plainFileArguments(program, args) {
     }
     return files;
   }
-  if (FILE_PROGRAMS.has(program)) return args.filter(argument => !argument.startsWith('-') && !argument.startsWith('+') && !/[<>]/.test(argument));
+  if (FILE_PROGRAMS.has(program)) {
+    return args.filter(argument => !argument.startsWith('-') && !argument.startsWith('+') && !/[<>]/.test(argument));
+  }
   if (program === 'sed') {
     const printOnly = args.some(argument => argument === '-n' || /^-[A-Za-z]*n[A-Za-z]*$/.test(argument));
     const candidates = args.filter(argument => !argument.startsWith('-'));
     const scriptIndex = candidates.findIndex(argument => /p(?:$|;)/.test(argument));
-    return printOnly && scriptIndex >= 0 ? candidates.slice(scriptIndex + 1).filter(argument => !/[<>]/.test(argument)) : [];
+    return printOnly && scriptIndex >= 0
+      ? candidates.slice(scriptIndex + 1).filter(argument => !/[<>]/.test(argument))
+      : [];
   }
   if (program === 'jq') {
     let index = 0;
@@ -234,7 +238,7 @@ function fileResult(files, description) {
   // A variable or a wildcard is not a file name: keep the File kind, name it by the description.
   if (files.some(file => /[$*?]/.test(file.path))) {
     const folders = [...new Set(files.map(file => file.location).filter(location => !/[$*?]/.test(location)))];
-    return { kind: "file", name: description, location: folders.length === 1 ? folders[0] : "" };
+    return { kind: "file", name: description, location: folders.length === 1 ? folders[0] : "", files };
   }
   const unique = [];
   const seen = new Set();
@@ -246,7 +250,7 @@ function fileResult(files, description) {
   }
   if (unique.length === 1) {
     const file = unique[0];
-    return { kind: 'file', name: path.basename(file.path), location: file.location };
+    return { kind: 'file', name: path.basename(file.path), location: file.location, files: unique };
   }
   const locations = new Set(unique.map(file => file.location));
   const sameFolder = locations.size === 1;
@@ -255,6 +259,7 @@ function fileResult(files, description) {
     kind: 'file',
     name: sameFolder ? `${unique.length} files in ${location}` : `${unique.length} files`,
     location,
+    files: unique,
     items: unique.map(file => path.basename(file.path))
   };
 }

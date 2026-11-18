@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { classifyShellCommand } from './shell-kind.mjs';
 import { buildStartLoad } from './start-load.mjs';
 
@@ -8,7 +9,11 @@ export const EXCLUDED_TOOLS = new Set([
 ]);
 
 // MCP tool names (the part after the server) that start with one of these verbs change state.
-export const MCP_WRITE_VERB = /^(write|edit|move|remove|delete|create|update|save|set|send|post|put|patch|apply|bind|batch|merge|resolve|mark|share|unshare|retire|restore|submit)(_|$)/i;
+export const MCP_WRITE_VERB = new RegExp(
+  '^(write|edit|move|remove|delete|create|update|save|set|send|post|put|patch|apply|' +
+    'bind|batch|merge|resolve|mark|share|unshare|retire|restore|submit)(_|$)',
+  'i'
+);
 
 function textOf(value) {
   if (typeof value === 'string') return value;
@@ -27,6 +32,16 @@ function blocksOf(record) {
   if (Array.isArray(content)) return content;
   if (content == null) return [];
   return [{ type: 'text', text: textOf(content) }];
+}
+
+function conversationText(value) {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map(conversationText).filter(Boolean).join('\n');
+  if (value.type === 'image' || value.source?.type === 'base64') return '[image]';
+  if (typeof value.text === 'string') return value.text;
+  if (value.content != null) return conversationText(value.content);
+  return '';
 }
 
 function totalUsage(usage = {}) {
@@ -91,7 +106,7 @@ function readInfo(tool, home) {
     }
     return {
       category: shell.kind === 'file' ? 'File' : 'Explore', kind: shell.kind,
-      name: shell.name, location: shell.location, items: shell.items
+      name: shell.name, location: shell.location, items: shell.items, sourceFiles: shell.files
     };
   }
   if (tool.name.startsWith('mcp__')) {
@@ -122,8 +137,19 @@ function savedOutputPath(text) {
   return text.match(/Full output saved to:\s*([^\s<]+)/i)?.[1] || '';
 }
 
-function cleanReadText(text) {
-  return text.split('\n').map(line => line.replace(/^\s*\d+\t/, '')).join('\n').trim();
+function readLines(text) {
+  const rawText = String(text).replaceAll('\r', '').trim();
+  const rawLines = rawText.split('\n');
+  const nonEmpty = rawLines.filter(line => line.trim());
+  const prefixed = nonEmpty.filter(line => /^\s*\d+(?:\t|→)/.test(line)).length;
+  const hasToolNumbers = nonEmpty.length > 0 && prefixed > nonEmpty.length / 2;
+  const lineNumbers = [];
+  const lines = rawLines.map((line, index) => {
+    const match = hasToolNumbers ? line.match(/^\s*(\d+)(?:\t|→)/) : null;
+    lineNumbers.push(match ? Number(match[1]) : index + 1);
+    return match ? line.slice(match[0].length) : line;
+  });
+  return { text: lines.join('\n'), rawText, lineNumbers };
 }
 
 function isImageRead(tool, inputPath) {
@@ -159,15 +185,138 @@ function mergeSavedOutputs(reads) {
     const source = sources.get(path.normalize(read.loadedPath));
     if (!source || source === read) continue;
     source.text = read.text;
+    source.rawText = read.rawText;
+    source.shellOutput = read.text;
     source.size += read.size;
     source.estimated ||= read.estimated;
     source.charCount += read.charCount;
+    source.toolUseIds = [...new Set([...(source.toolUseIds || []), ...(read.toolUseIds || [])])];
     removed.add(read);
   }
   return reads.filter(read => !removed.has(read)).map(read => {
-    const { savedPath, loadedPath, charCount, ...publicRead } = read;
-    return publicRead;
+    const parsed = readLines(read.rawText ?? read.text);
+    const file = {
+      name: read.name,
+      path: read.loadedPath || read.location || read.name,
+      text: read.text,
+      rawText: parsed.rawText,
+      lineNumbers: parsed.lineNumbers,
+      size: read.size,
+      toolUseIds: read.toolUseIds || []
+    };
+    const files = splitShellOutput(read, file);
+    const { savedPath, loadedPath, charCount, sourceFiles, shellOutput, ...publicRead } = read;
+    return { ...publicRead, files };
   });
+}
+
+const MAX_SPLIT_FILE_BYTES = 2 * 1024 * 1024;
+
+function readSplitFile(filePath) {
+  let descriptor;
+  try {
+    descriptor = openSync(filePath, constants.O_RDONLY | constants.O_NONBLOCK);
+    const stat = fstatSync(descriptor);
+    if (!stat.isFile() || stat.size > MAX_SPLIT_FILE_BYTES) return null;
+    const buffer = Buffer.alloc(stat.size);
+    let size = 0;
+    while (size < buffer.length) {
+      const count = readSync(descriptor, buffer, size, buffer.length - size, size);
+      if (!count) return null;
+      size += count;
+    }
+    if (fstatSync(descriptor).size !== size) return null;
+    return buffer.toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (descriptor != null) {
+      try { closeSync(descriptor); } catch {}
+    }
+  }
+}
+
+function textMatch(output, text, start) {
+  const variants = [text];
+  if (text.endsWith('\n')) variants.push(text.slice(0, -1));
+  else variants.push(`${text}\n`);
+  let found = null;
+  for (const value of variants) {
+    const index = output.indexOf(value, start);
+    if (index >= 0 && (!found || index < found.index)) found = { index, value };
+  }
+  return found;
+}
+
+function exactShellParts(output, diskFiles) {
+  let position = 0;
+  let other = '';
+  for (const file of diskFiles) {
+    const match = textMatch(output, file.text, position);
+    if (!match) return null;
+    other += output.slice(position, match.index);
+    position = match.index + match.value.length;
+  }
+  return { files: diskFiles, other: other + output.slice(position) };
+}
+
+function anchoredShellParts(output, diskFiles) {
+  const lines = output.match(/[^\n]*\n|[^\n]+$/g) || [];
+  const lineText = line => line.replace(/\r?\n$/, '');
+  const diskLines = diskFiles.map(file => file.text.split(/\r?\n/).filter(line => line.trim()));
+  const starts = [];
+  let cursor = 0;
+  for (const [anchor] of diskLines) {
+    while (cursor < lines.length && lineText(lines[cursor]) !== anchor) cursor += 1;
+    if (cursor === lines.length) return null;
+    starts.push(cursor++);
+  }
+  cursor = starts.at(-1);
+  let tailFound = true;
+  for (const tail of diskLines.at(-1).slice(-3)) {
+    while (cursor < lines.length && lineText(lines[cursor]) !== tail) cursor += 1;
+    if (cursor === lines.length) {
+      tailFound = false;
+      break;
+    }
+    cursor += 1;
+  }
+  const files = diskFiles.map((file, index) => ({
+    path: file.path,
+    text: lines.slice(starts[index], starts[index + 1] ?? cursor).join('')
+  }));
+  const other = tailFound ? lines.slice(0, starts[0]).concat(lines.slice(cursor)).join('') : '';
+  return { files, other };
+}
+
+function splitShellOutput(read, fallback) {
+  const candidates = read.sourceFiles || [];
+  if (candidates.length < 2 || candidates.some(file => file.revision || /[$*?\[\]{}]/.test(file.path))) return [fallback];
+  const diskFiles = candidates.map(file => ({ path: file.path, text: readSplitFile(file.path) }));
+  if (diskFiles.some(file => !file.text?.trim())) return [fallback];
+
+  const output = read.shellOutput ?? fallback.rawText;
+  const split = exactShellParts(output.replace(/\r?\n$/, ''), diskFiles) || anchoredShellParts(output, diskFiles);
+  if (!split) return [fallback];
+  const part = (name, filePath, text) => ({
+    name,
+    path: filePath,
+    text,
+    rawText: text,
+    lineNumbers: text.split('\n').map((_, index) => index + 1),
+    toolUseIds: fallback.toolUseIds
+  });
+  const parts = split.files.map(file => part(path.basename(file.path), file.path, file.text));
+  if (split.other) parts.push(part('other output', 'other output', split.other));
+  const total = parts.reduce((sum, part) => sum + Math.max(1, part.text.length), 0);
+  let assigned = 0;
+  parts.forEach((part, index) => {
+    part.size = index === parts.length - 1
+      ? fallback.size - assigned
+      : Math.floor(fallback.size * Math.max(1, part.text.length) / total);
+    assigned += part.size;
+  });
+  return parts;
 }
 
 function groupFiles(reads) {
@@ -192,12 +341,82 @@ function groupFiles(reads) {
         items,
         size: group.reduce((sum, read) => sum + read.size, 0),
         text: group.map(read => read.text).join('\n\n'),
+        files: group.flatMap(read => read.files),
+        toolUseIds: group.flatMap(read => read.toolUseIds || []),
         estimated: group.some(read => read.estimated)
       });
     }
     index = end;
   }
   return result;
+}
+
+function toolPresentation(tool, result, source, home) {
+  const info = readInfo(tool, home);
+  const read = source?.read;
+  const file = source?.file;
+  const input = tool.input || {};
+  const verb = tool.name.startsWith('mcp__') ? mcpParts(tool.name).tool.replaceAll('_', '.') : tool.name;
+  const argument = firstString(input, ['file_path', 'path', 'command', 'query', 'url', 'description', 'skill'])
+    || JSON.stringify(input);
+  return {
+    id: tool.id,
+    ref: file?.ref || read?.ref || '',
+    rowRef: read?.ref || '',
+    kind: read?.kind || info?.kind || (tool.name.startsWith('mcp__') ? 'mcp' : 'run'),
+    verb,
+    argument: argument.slice(0, 240),
+    input,
+    result: result ? conversationText(result.content) : '',
+    size: file?.size || read?.size || 0,
+    isRead: Boolean(read)
+  };
+}
+
+function buildConversation(records, reads, home) {
+  const readByTool = new Map();
+  for (const read of reads) {
+    for (const file of read.files || []) {
+      for (const id of file.toolUseIds || []) {
+        const previous = readByTool.get(id);
+        readByTool.set(id, previous && previous.file !== file ? { read } : { read, file });
+      }
+    }
+  }
+  const results = new Map();
+  for (const record of records) {
+    if (record.isSidechain === true || record.type !== 'user') continue;
+    for (const block of blocksOf(record)) if (block?.type === 'tool_result') results.set(block.tool_use_id, block);
+  }
+  const items = [];
+  let messageIndex = 0;
+  for (const record of records) {
+    if (record.isSidechain === true) continue;
+    if (record.type === 'compact_boundary') {
+      items.push({ type: 'compact' });
+      continue;
+    }
+    if (record.type === 'user') {
+      const text = blocksOf(record).filter(block => block?.type !== 'tool_result')
+        .map(conversationText).map(value => value.trim()).filter(value => value
+          && !/^<system-reminder>[\s\S]*<\/system-reminder>$/i.test(value)
+          && !/^<(?:command-|local-command-)/i.test(value)
+          && !/<command-(?:name|message|args)>/i.test(value)).join('\n\n');
+      if (text) items.push({ type: 'message', role: 'user', text, messageIndex: messageIndex++ });
+      continue;
+    }
+    if (record.type !== 'assistant') continue;
+    const blocks = blocksOf(record);
+    const text = blocks.filter(block => block?.type === 'text').map(conversationText).filter(Boolean).join('\n\n');
+    const calls = blocks.filter(block => block?.type === 'tool_use' && block.id).map(block => {
+      const tool = { id: block.id, name: block.name || '', input: block.input || {} };
+      return toolPresentation(tool, results.get(block.id), readByTool.get(block.id), home);
+    });
+    if (text || calls.length) {
+      items.push({ type: 'message', role: 'assistant', text, tools: calls, messageIndex: messageIndex++ });
+    }
+  }
+  return items;
 }
 
 export function parseTranscript(source, options = {}) {
@@ -226,13 +445,19 @@ export function parseTranscript(source, options = {}) {
     if (!info || EXCLUDED_TOOLS.has(tool.name)) return;
     const inputPath = tool.name === 'Read' ? firstString(tool.input, ['file_path', 'path']) : '';
     const image = isImageRead(tool, inputPath);
-    const text = image ? `[image: ${inputPath}]` : tool.name === 'Read' ? cleanReadText(rawText) : rawText.trim();
+    const parsed = readLines(rawText);
+    const text = image ? `[image: ${inputPath}]` : tool.name === 'Read' ? parsed.text : rawText.trim();
     const savedPath = savedOutputPath(rawText);
     const resultChars = rawText.length || JSON.stringify(result.content ?? '').length;
     const event = {
-      ...info, tool: tool.name, size: 0, estimated: false, text,
+      ...info, tool: tool.name, size: 0, estimated: false, text, rawText: image ? text : parsed.rawText,
       promptIndex: tool.promptIndex, charCount: Math.max(1, resultChars),
-      savedPath, loadedPath: inputPath,
+      savedPath, loadedPath: inputPath, toolUseIds: [tool.id],
+      // Relative paths in a command are relative to the session's folder, not to this process.
+      ...(info.sourceFiles?.length > 1 ? {
+        shellOutput: rawText,
+        sourceFiles: info.sourceFiles.map(file => ({ ...file, path: path.resolve(tool.cwd || '/', file.path) }))
+      } : {}),
       ...(info.kind === 'run' ? { discard: true } : {})
     };
     if (result.isError && !event.discard) return;
@@ -255,7 +480,7 @@ export function parseTranscript(source, options = {}) {
       for (const block of blocksOf(record)) {
         if (block?.type !== 'tool_use' || !block.id || toolUseSeen.has(block.id)) continue;
         toolUseSeen.add(block.id);
-        const tool = { id: block.id, name: block.name || '', input: block.input || {}, promptIndex };
+        const tool = { id: block.id, name: block.name || '', input: block.input || {}, promptIndex, cwd: record.cwd || '' };
         tools.set(block.id, tool);
         if (tool.name === 'Skill') waitingSkills.push(tool);
       }
@@ -278,12 +503,24 @@ export function parseTranscript(source, options = {}) {
 
   const enteredReads = reads.filter(read => read.size != null && !pending.includes(read));
   const merged = groupFiles(mergeSavedOutputs(enteredReads).filter(read => !read.discard));
+  merged.forEach((read, index) => {
+    read.ref = `r${index}`;
+    read.files.forEach((file, fileIndex) => {
+      file.ref = read.files.length === 1 ? read.ref : `${read.ref}.${fileIndex + 1}`;
+    });
+  });
   const startLoad = buildStartLoad(records, startLoadTokens, { home });
+  const cwd = records.find(record => record.cwd)?.cwd
+    || records.find(record => record.type === 'attachment' && record.attachment?.type === 'environment')
+      ?.attachment?.snapshot?.workingDirectory
+    || '';
   return {
     sessionId: options.sessionId || '',
+    cwd,
     startLoadTokens,
     startLoad,
     totalReadTokens: merged.reduce((sum, read) => sum + read.size, 0),
-    reads: merged
+    reads: merged,
+    conversation: buildConversation(records, merged, home)
   };
 }

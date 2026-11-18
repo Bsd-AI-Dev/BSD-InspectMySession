@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { parseTranscript } from '../src/show-context.mjs';
 import { renderShowContextPage } from '../src/show-context-page.mjs';
+import { startServer } from '../src/server.mjs';
 
 const runFile = promisify(execFile);
 
@@ -59,17 +61,30 @@ async function selectSession(root, idArgument) {
     return { session: matches[0], guessed: false };
   }
   const slug = path.resolve(process.cwd()).replaceAll('/', '-').replaceAll('.', '-');
-  const matches = sessions.filter(session => session.project === slug).sort((a, b) => b.mtimeMs - a.mtimeMs || a.id.localeCompare(b.id));
+  const matches = sessions
+    .filter(session => session.project === slug)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs || a.id.localeCompare(b.id));
   if (!matches.length) throw new Error('no session found for this folder');
   return { session: matches[0], guessed: true };
 }
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === '--serve') {
+    const [, transcript, sessionId] = args;
+    const source = await readFile(transcript, 'utf8');
+    const model = parseTranscript(source, { sessionId, home: os.homedir() });
+    const html = renderShowContextPage(model, { live: true });
+    const { url } = await startServer({ model, html });
+    process.stdout.write(`${url}\n`);
+    return;
+  }
   const noOpen = args.includes('--no-open');
-  const positional = args.filter(argument => argument !== '--no-open');
-  if (positional.length > 1 || args.some(argument => argument.startsWith('--') && argument !== '--no-open')) {
-    throw new Error('usage: show-context [session-id-or-prefix] [--no-open]');
+  const staticOnly = args.includes('--static');
+  const positional = args.filter(argument => argument !== '--no-open' && argument !== '--static');
+  const unknownFlag = args.some(argument => argument.startsWith('--') && !['--no-open', '--static'].includes(argument));
+  if (positional.length > 1 || unknownFlag) {
+    throw new Error('usage: show-context [session-id-or-prefix] [--no-open] [--static]');
   }
   const { session, guessed } = await selectSession(projectsRoot(), positional[0]);
   let source;
@@ -77,12 +92,39 @@ async function main() {
   catch { throw new Error(`cannot read transcript: ${session.id}`); }
   const model = parseTranscript(source, { sessionId: session.id, home: os.homedir() });
   const html = renderShowContextPage(model);
-  const output = path.resolve(process.env.SHOW_CONTEXT_OUT || path.join(os.homedir(), '.cache/show-context/show-context.html'));
+  const output = path.resolve(
+    process.env.SHOW_CONTEXT_OUT || path.join(os.homedir(), '.cache/show-context/show-context.html')
+  );
   await mkdir(path.dirname(output), { recursive: true, mode: 0o700 });
   await writeFile(output, html, { mode: 0o600 });
-  if (!noOpen) await runFile('open', [output]);
+  let target = output;
+  if (!staticOnly) {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--serve', session.file, session.id], {
+      detached: true,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+    target = await new Promise((resolve, reject) => {
+      let line = '';
+      const timeout = setTimeout(() => reject(new Error('live server did not start')), 4000);
+      child.once('error', reject);
+      child.stdout.on('data', chunk => {
+        line += chunk;
+        const newline = line.indexOf('\n');
+        if (newline < 0) return;
+        clearTimeout(timeout);
+        resolve(line.slice(0, newline).trim());
+      });
+    });
+    child.stdout.destroy();
+    child.unref();
+  }
+  if (!noOpen) await runFile('open', [target]);
   const note = guessed ? ' · guessed: newest session in this folder' : '';
-  console.log(`show-context: ${model.reads.length} reads, ${model.totalReadTokens} tokens · ${session.id.slice(0, 8)}${note} · ${output}`);
+  console.log(
+    `show-context: ${model.reads.length} reads, ${model.totalReadTokens} tokens` +
+    ` · ${session.id.slice(0, 8)}${note} · ${target} · ${output}`
+  );
 }
 
 try {
