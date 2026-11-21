@@ -10,6 +10,28 @@ import { renderShowContextPage } from '../src/show-context-page.mjs';
 import { startServer } from '../src/server.mjs';
 
 const runFile = promisify(execFile);
+const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const help = `Show a Claude Code conversation and the context it read.
+
+Usage: show-context [session-id-or-prefix] [--no-open] [--static]
+
+Flags:
+  --no-open       Do not open the report.
+  --static        Write a static report without a live server.
+  -h, --help      Show this help.
+  -v, --version   Show the version.
+
+Environment:
+  SHOW_CONTEXT_OUT          Set the report output path.
+  SHOW_CONTEXT_PROJECTS     Set the Claude projects root.
+  CONTEXT_LENS_ROOT         Set the old fallback projects root.
+  SHOW_CONTEXT_PORT         Set the live server port.
+  SHOW_CONTEXT_IDLE_MS      Set the live server idle timeout in milliseconds.
+  SHOW_CONTEXT_CLAUDE_BIN   Set the Claude CLI binary.
+
+Example:
+  show-context abc123 --no-open
+`;
 
 function projectsRoot() {
   return path.resolve(process.env.SHOW_CONTEXT_PROJECTS
@@ -79,11 +101,21 @@ async function main() {
     process.stdout.write(`${url}\n`);
     return;
   }
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(help);
+    return;
+  }
+  if (args.includes('--version') || args.includes('-v')) {
+    process.stdout.write(`${packageJson.version}\n`);
+    return;
+  }
+  const flags = new Set(['--no-open', '--static']);
+  const unknownFlag = args.find(argument => argument.startsWith('-') && !flags.has(argument));
+  if (unknownFlag) throw new Error(`unknown flag: ${unknownFlag}. Use --help for help.`);
   const noOpen = args.includes('--no-open');
   const staticOnly = args.includes('--static');
-  const positional = args.filter(argument => argument !== '--no-open' && argument !== '--static');
-  const unknownFlag = args.some(argument => argument.startsWith('--') && !['--no-open', '--static'].includes(argument));
-  if (positional.length > 1 || unknownFlag) {
+  const positional = args.filter(argument => !flags.has(argument));
+  if (positional.length > 1) {
     throw new Error('usage: show-context [session-id-or-prefix] [--no-open] [--static]');
   }
   const { session, guessed } = await selectSession(projectsRoot(), positional[0]);

@@ -1,107 +1,78 @@
 # show-context
 
-show-context creates one local page for a Claude Code session.
-
-![A show-context page with start load parts and session reads](docs/screenshot.png)
-
-![A split conversation and source answer](docs/screenshot-ask.png)
-
-## What the page shows
-
-The page has Conversation and Show context modes.
-Conversation shows the main thread, assistant Markdown, and folded tool calls.
-Select assistant text to ask where it came from.
-Select text in a tool row to ask why the call was made.
-The answer opens a split view and connects exact source passages with numbered lines.
-
-Show context keeps the context view from version 0.1.
-It shows the parts loaded at the start of the session.
-It then shows each read in order.
-The block height grows with the read size.
-Each color identifies File, Explore, MCP, Skill, or Web content.
-Select a row to see its full text.
-The size filter hides rows smaller than 2,000 tokens by default.
-
-## Install
-
-Install the command with npm.
-
-```text
-npm install -g show-context
-```
-
-You can also run it without an install.
+**See what fills your Claude Code context window, and where each answer came from.**
 
 ```text
 npx show-context
 ```
 
-Install it from source.
+Run it inside any Claude Code session (as `! npx show-context`). It opens one local page with the whole conversation and every file, search, MCP result, skill and web page the session read, sized by real token use.
+
+<p align="center">
+  <img src="docs/demo.gif" alt="show-context: select an answer, trace it to its source, see every read and its token size" width="360">
+</p>
+
+## Why
+
+I asked Claude Code a simple question about the Express codebase. Before it read a single line of code, the session already held **33,003 tokens**: 12k of tool definitions, 7.8k of skill descriptions, 6.4k of MCP instructions. The file reads that answered the question? **1,873 tokens.**
+
+You can't see any of that from the chat. show-context makes it visible, so you know what to trim and which answers to trust.
+
+## What you get
+
+**Conversation mode.** The main thread with folded tool calls. Select any sentence Claude wrote and click *Where did this come from?* A split view opens with numbered links to the exact source passages it used. Select text inside a tool call to ask why the call was made.
+
+**Show context mode.** What loaded at session start (system prompt, tools, CLAUDE.md, skills, MCP), then each read in order. Block height grows with token size, colors mark File, Explore, MCP, Skill and Web reads. A size filter hides the small stuff (under 2,000 tokens by default). Click a row to see its full text.
+
+![Show context mode: start load parts and session reads](docs/screenshot.png)
+
+## Install
 
 ```text
-git clone https://github.com/bernatsampera/show-context.git
-cd show-context
-npm link
+npm install -g show-context
 ```
 
-Node.js 24 or later is required.
+Or run it without installing: `npx show-context`. Requires Node.js 22 or later. No dependencies.
 
 ## Use
 
-Run this command inside Claude Code.
+Inside Claude Code:
 
 ```text
 ! show-context
 ```
 
-Run this command in a terminal to select a session by ID or prefix.
+From a terminal, pick a session by ID or prefix:
 
 ```text
 show-context <session-id-or-prefix>
 ```
 
-Use `--no-open` to print the live URL without opening it.
-Use `--static` to write and open a static page without a server.
-Set `SHOW_CONTEXT_OUT` to select another output file.
-Set `SHOW_CONTEXT_PROJECTS` to select another Claude projects folder.
-The old `CONTEXT_LENS_ROOT` name still works as a fallback.
-Set `SHOW_CONTEXT_PORT` to select a server port.
-Set `SHOW_CONTEXT_IDLE_MS` to change the idle timeout in milliseconds.
-Set `SHOW_CONTEXT_CLAUDE_BIN` to select another Claude Code CLI binary.
+| Option | What it does |
+| --- | --- |
+| `--no-open` | Print the live URL, don't open the browser |
+| `--static` | Write a static page, no local server |
+| `--help` | Show all options and environment variables |
 
-The default output is `~/.cache/show-context/show-context.html`.
-The live server exits after 30 minutes without a request.
+Environment variables: `SHOW_CONTEXT_OUT` (output file, default `~/.cache/show-context/show-context.html`), `SHOW_CONTEXT_PROJECTS` (Claude projects folder), `SHOW_CONTEXT_PORT`, `SHOW_CONTEXT_IDLE_MS` (server idle timeout, default 30 minutes), `SHOW_CONTEXT_CLAUDE_BIN` (Claude Code binary).
 
-## How it works
+## Privacy and how it works
 
-The command reads one local transcript.
-It writes a complete static page.
-By default, it also starts a detached local server and exits at once.
-The server binds only to `127.0.0.1`.
-The URL contains a random 32-byte token.
-Every server route requires that token.
-The command does not change the Claude projects folder.
-
-The command measures input tokens from each model call.
-This value is exact for that call.
-When several items enter the call together, the command divides the increase by the character count of each item.
-
-Reads include files, shell file reads, shell searches, MCP reads, skills, and web results.
-Writes, edits, and run commands are not reads.
-The page keeps all CSS, JavaScript, data, and icons in one local HTML file.
-
-Asking runs the local Claude Code CLI on a fork of the session.
-The fork has no tools and does not save a session.
-The original session does not change.
-That Claude Code call uses the network and costs tokens like any other Claude Code call.
-Everything else stays local.
+- It reads one local session transcript and never changes it.
+- The page is a single self-contained HTML file. The optional server binds to `127.0.0.1` only, and every route needs a random 32-byte token.
+- Token counts come from the real input token use of each model call. When several items enter one call together, the increase is split by their character count.
+- Reads are files, shell reads and searches, MCP reads, skills and web results. Writes, edits and commands that run things are not reads.
+- **Only *Where did this come from?* uses the network.** It runs your local Claude Code CLI on a fork of the session with no tools, and costs tokens like any Claude Code call. The fork is not saved, and your session stays untouched.
 
 ## Limits
 
-The parser depends on the Claude Code transcript format.
-That format can change.
-The page does not show subagent reads.
-Asking supports Claude Code only for now.
+- It depends on the Claude Code transcript format, which can change.
+- Subagent reads are not shown yet.
+- *Where did this come from?* works with Claude Code only.
+
+## Contributing
+
+Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [good first issues](https://github.com/bernatsampera/show-context/labels/good%20first%20issue).
 
 ## License
 

@@ -15,6 +15,27 @@ const compactId = 'bbbbbbbb-2222-4222-8222-222222222222';
 const oldId = 'cccccccc-3333-4333-8333-333333333333';
 const demoId = 'dddddddd-4444-4444-8444-444444444444';
 const fixtureProjectSlug = '-Users-example-projects-demo';
+const expectedHelp = `Show a Claude Code conversation and the context it read.
+
+Usage: show-context [session-id-or-prefix] [--no-open] [--static]
+
+Flags:
+  --no-open       Do not open the report.
+  --static        Write a static report without a live server.
+  -h, --help      Show this help.
+  -v, --version   Show the version.
+
+Environment:
+  SHOW_CONTEXT_OUT          Set the report output path.
+  SHOW_CONTEXT_PROJECTS     Set the Claude projects root.
+  CONTEXT_LENS_ROOT         Set the old fallback projects root.
+  SHOW_CONTEXT_PORT         Set the live server port.
+  SHOW_CONTEXT_IDLE_MS      Set the live server idle timeout in milliseconds.
+  SHOW_CONTEXT_CLAUDE_BIN   Set the Claude CLI binary.
+
+Example:
+  show-context abc123 --no-open
+`;
 
 let chrome = '';
 let temp;
@@ -256,6 +277,15 @@ async function run(sessionRoot, args, options = {}) {
   }
 }
 
+async function runCli(args) {
+  try {
+    const result = await exec(process.execPath, [cli, ...args], { cwd: repo });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { code: error.code, stdout: error.stdout || '', stderr: error.stderr || '' };
+  }
+}
+
 function dataFrom(html) {
   const match = html.match(/<script id="show-context-data" type="application\/json">([^<]*)<\/script>/);
   assert.ok(match, 'page has embedded read data');
@@ -324,6 +354,26 @@ before(async () => {
   ]) {
     await copyFile(path.join(fixtures, `${name}.jsonl`), path.join(fixtureProject, `${id}.jsonl`));
   }
+});
+
+test('help, version, and unknown flags are complete CLI E2E paths', async () => {
+  for (const flag of ['--help', '-h']) {
+    const result = await runCli([flag]);
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, expectedHelp);
+    assert.equal(result.stderr, '');
+  }
+  for (const flag of ['--version', '-v']) {
+    const result = await runCli([flag]);
+    assert.equal(result.code, 0);
+    const packageJson = JSON.parse(await readFile(path.join(repo, 'package.json'), 'utf8'));
+    assert.equal(result.stdout, `${packageJson.version}\n`);
+    assert.equal(result.stderr, '');
+  }
+  const unknown = await runCli(['--unknown']);
+  assert.equal(unknown.code, 1);
+  assert.equal(unknown.stdout, 'show-context: unknown flag: --unknown. Use --help for help.\n');
+  assert.equal(unknown.stderr, '');
 });
 
 test('session selection, errors, and deterministic output', async () => {
@@ -676,7 +726,6 @@ test('report and screenshot are repeatable E2E artifacts', async t => {
   const publicScreenshot = path.join(repo, 'docs/screenshot.png');
   const profile = path.join(temp, 'chrome-screenshot-profile');
   await mkdir(profile, { recursive: true });
-  await mkdir(path.dirname(publicScreenshot), { recursive: true });
   await exec(
     chrome,
     [
@@ -693,7 +742,10 @@ test('report and screenshot are repeatable E2E artifacts', async t => {
     ],
     { maxBuffer: 4 * 1024 * 1024 }
   );
-  await copyFile(localScreenshot, publicScreenshot);
   assert.ok((await stat(localScreenshot)).size > 10_000);
-  assert.deepEqual(await readFile(publicScreenshot), await readFile(localScreenshot));
+  if (process.env.UPDATE_SCREENSHOTS === '1') {
+    await mkdir(path.dirname(publicScreenshot), { recursive: true });
+    await copyFile(localScreenshot, publicScreenshot);
+    assert.deepEqual(await readFile(publicScreenshot), await readFile(localScreenshot));
+  }
 });

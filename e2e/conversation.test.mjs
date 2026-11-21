@@ -657,8 +657,11 @@ test('ask screenshot artifact exists after Chrome E2E', async t => {
     assert.equal(png.readUInt32BE(16), 1280);
     assert.equal(png.readUInt32BE(20), 800);
     await writeFile(reportScreenshot, png);
-    await copyFile(reportScreenshot, screenshot);
-    assert.ok((await stat(screenshot)).size > 10_000);
+    assert.ok((await stat(reportScreenshot)).size > 10_000);
+    if (process.env.UPDATE_SCREENSHOTS === '1') {
+      await copyFile(reportScreenshot, screenshot);
+      assert.ok((await stat(screenshot)).size > 10_000);
+    }
     await cdp.evaluate(`(() => {
       document.querySelector('.a-close').click();
       document.getElementById('m-context').click();
