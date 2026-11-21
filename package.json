@@ -1,6 +1,6 @@
 {
   "name": "show-context",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Show a Claude Code conversation and the context it read.",
   "type": "module",
   "keywords": [
