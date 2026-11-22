@@ -9,7 +9,7 @@ npx show-context
 Run it inside any Claude Code session (as `! npx show-context`). It opens one local page with the whole conversation and every file, search, MCP result, skill and web page the session read, sized by real token use.
 
 <p align="center">
-  <img src="docs/demo.gif" alt="show-context: select an answer, trace it to its source, see every read and its token size" width="360">
+  <img src="docs/demo.webp" alt="show-context: select an answer, trace it to its source, see every read and its token size" width="400">
 </p>
 
 ## Why
