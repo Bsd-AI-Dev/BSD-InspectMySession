@@ -11,8 +11,11 @@ import { parseTranscript } from '../src/show-context.mjs';
 const repo = path.resolve(import.meta.dirname, '..');
 const cli = path.join(repo, 'bin/show-context.mjs');
 const fixture = path.join(import.meta.dirname, 'fixtures/conversation.jsonl');
+const demoFixture = path.join(import.meta.dirname, 'fixtures/demo.jsonl');
+const demoAnswer = path.join(import.meta.dirname, 'fixtures/demo-answer.json');
 const fake = path.join(import.meta.dirname, 'fixtures/fake-claude.mjs');
 const sessionId = 'eeeeeeee-5555-4555-8555-555555555555';
+const demoSessionId = 'dddddddd-4444-4444-8444-444444444444';
 let temp;
 let projects;
 let sessionFile;
@@ -30,8 +33,8 @@ const splitFiles = {
 
 const jsonLine = value => `${JSON.stringify(value)}\n`;
 
-function start(args = [], env = {}) {
-  const child = spawn(process.execPath, [cli, sessionId, '--no-open', ...args], {
+function start(args = [], env = {}, selectedSessionId = sessionId) {
+  const child = spawn(process.execPath, [cli, selectedSessionId, '--no-open', ...args], {
     cwd: repo,
     env: {
       ...process.env,
@@ -173,6 +176,13 @@ before(async () => {
   await mkdir(project, { recursive: true });
   sessionFile = path.join(project, `${sessionId}.jsonl`);
   await copyFile(fixture, sessionFile);
+  const demoProject = path.join(temp, 'todo-api');
+  await mkdir(demoProject, { recursive: true });
+  const demoRecords = (await readFile(demoFixture, 'utf8')).trim().split('\n').map(JSON.parse);
+  const environment = demoRecords.find(record => record.attachment?.type === 'environment').attachment;
+  environment.content = `Working directory: ${demoProject}\nPlatform: local development`;
+  environment.snapshot.workingDirectory = demoProject;
+  await writeFile(path.join(project, `${demoSessionId}.jsonl`), `${demoRecords.map(jsonLine).join('')}`);
   splitDir = path.join(temp, 'split-files');
   await mkdir(splitDir, { recursive: true });
   for (const [name, text] of Object.entries(splitFiles)) await writeFile(path.join(splitDir, name), text);
@@ -652,16 +662,11 @@ test('ask screenshot artifact exists after Chrome E2E', async t => {
     const reportDir = path.join(repo, 'e2e/.local/report');
     await mkdir(reportDir, { recursive: true });
     const reportScreenshot = path.join(reportDir, 'show-context-ask.png');
-    const screenshot = path.join(repo, 'docs/screenshot-ask.png');
     const png = Buffer.from(capture.data, 'base64');
     assert.equal(png.readUInt32BE(16), 1280);
     assert.equal(png.readUInt32BE(20), 800);
     await writeFile(reportScreenshot, png);
     assert.ok((await stat(reportScreenshot)).size > 10_000);
-    if (process.env.UPDATE_SCREENSHOTS === '1') {
-      await copyFile(reportScreenshot, screenshot);
-      assert.ok((await stat(screenshot)).size > 10_000);
-    }
     await cdp.evaluate(`(() => {
       document.querySelector('.a-close').click();
       document.getElementById('m-context').click();
@@ -720,6 +725,104 @@ test('ask screenshot artifact exists after Chrome E2E', async t => {
       /Asking needs the live page/
     );
     assert.deepEqual(cdp.exceptions, []);
+  } finally {
+    cdp.socket.close();
+    cdp.child.kill('SIGTERM');
+  }
+});
+
+test('demo answer resolves every citation and produces the public ask screenshot', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
+  const run = start([], {
+    SHOW_CONTEXT_CLAUDE_BIN: fake,
+    SHOW_CONTEXT_FAKE_ANSWER: demoAnswer,
+    SHOW_CONTEXT_IDLE_MS: '10000'
+  }, demoSessionId);
+  const url = await waitForUrl(run);
+  const cdp = await openCdp(url);
+  try {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 800,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await cdp.send('Emulation.setEmulatedMedia', {
+      features: [
+        { name: 'prefers-color-scheme', value: 'light' },
+        { name: 'prefers-reduced-motion', value: 'reduce' }
+      ]
+    });
+    await waitForValue(cdp, 'document.readyState === "complete" && Boolean(document.getElementById("m-conv"))');
+    await cdp.evaluate(`(() => {
+      document.getElementById('m-conv').click();
+      const message = document.querySelector('.msg.assistant[data-msg="17"] .text');
+      message.scrollIntoView({ block: 'center' });
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    })()`);
+    const selected = await cdp.evaluate(`(() => {
+      const message = document.querySelector('.msg.assistant[data-msg="17"] .text');
+      const node = message.firstElementChild || message;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return selection.toString();
+    })()`);
+    assert.equal(
+      selected,
+      'The request enters the server, reaches one route handler, passes validation, calls the JSON store, and returns one JSON response.'
+    );
+    assert.equal(
+      await waitForValue(
+        cdp,
+        'document.getElementById("ask").classList.contains("on") && document.getElementById("ask-label").textContent'
+      ),
+      'Where did this come from?'
+    );
+    await cdp.evaluate('document.getElementById("ask-why").click()');
+    await waitForValue(cdp, 'document.body.classList.contains("answered")');
+    await waitForValue(cdp, 'document.querySelectorAll(".excerpt-source.src").length === 3');
+    await waitForValue(cdp, 'document.querySelectorAll("#wires path").length === 3');
+    const state = await cdp.evaluate(`({
+      split: document.body.classList.contains('mode-split'),
+      selected: [...document.querySelectorAll('mark.q')].map(mark => mark.textContent).join(' '),
+      citations: document.querySelectorAll('.cite').length,
+      missing: document.querySelectorAll('.quote-missing').length,
+      sources: document.querySelectorAll('.excerpt-source.src').length,
+      paths: document.querySelectorAll('#wires path').length,
+      headers: [...document.querySelectorAll('.excerpt-title')].map(item => item.textContent.trim()),
+      excerptsVisible: [...document.querySelectorAll('.excerpt')].every(item => {
+        const rect = item.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= innerHeight;
+      })
+    })`);
+    assert.equal(state.split, true);
+    assert.equal(state.selected, selected);
+    assert.equal(state.citations, 3);
+    assert.equal(state.missing, 0);
+    assert.equal(state.sources, 3);
+    assert.equal(state.paths, 3);
+    assert.deepEqual(state.headers, ['server.js L1', 'todos.js L1', 'storage.js L1']);
+    assert.equal(state.excerptsVisible, true);
+    assert.deepEqual(cdp.exceptions, []);
+
+    const capture = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    const reportDir = path.join(repo, 'e2e/.local/report');
+    await mkdir(reportDir, { recursive: true });
+    const reportScreenshot = path.join(reportDir, 'screenshot-ask-demo.png');
+    const publicScreenshot = path.join(repo, 'docs/screenshot-ask.png');
+    const png = Buffer.from(capture.data, 'base64');
+    assert.equal(png.readUInt32BE(16), 1280);
+    assert.equal(png.readUInt32BE(20), 800);
+    await writeFile(reportScreenshot, png);
+    assert.ok((await stat(reportScreenshot)).size > 10_000);
+    if (process.env.UPDATE_SCREENSHOTS === '1') {
+      await copyFile(reportScreenshot, publicScreenshot);
+      assert.deepEqual(await readFile(publicScreenshot), png);
+    }
   } finally {
     cdp.socket.close();
     cdp.child.kill('SIGTERM');

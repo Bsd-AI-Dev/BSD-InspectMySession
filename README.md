@@ -20,7 +20,9 @@ You can't see any of that from the chat. show-context makes it visible, so you k
 
 ## What you get
 
-**Conversation mode.** The main thread with folded tool calls. Select any sentence Claude wrote and click *Where did this come from?* A split view opens with numbered links to the exact source passages it used. Select text inside a tool call to ask why the call was made.
+**Where did this come from?** Select any sentence Claude wrote and ask. A split view links it, with numbered lines, to the exact passages in the files it read. Select text inside a tool call to ask why the call was made.
+
+![Where did this come from: an answer linked to the exact lines in server.js, todos.js and storage.js](docs/screenshot-ask.png)
 
 **Show context mode.** What loaded at session start (system prompt, tools, CLAUDE.md, skills, MCP), then each read in order. Block height grows with token size, colors mark File, Explore, MCP, Skill and Web reads. A size filter hides the small stuff (under 2,000 tokens by default). Click a row to see its full text.
 

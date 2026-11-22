@@ -1,0 +1,23 @@
+{
+  "summary": "The request follows the server, route handler, and JSON storage adapter.",
+  "citations": [
+    {
+      "ref": "r4",
+      "quote": "It parses the request URL, reads JSON bodies with a size limit, sends JSON responses, maps known errors to status codes, and passes todo routes to the router.",
+      "kind": "copied",
+      "explanation": "The server accepts the request and sends it to the todo router."
+    },
+    {
+      "ref": "r6.1",
+      "quote": "The route handler matches the method and path. It validates todo titles, normalizes completed values, calls the store, and returns one JSON result.",
+      "kind": "copied",
+      "explanation": "The route handler validates the todo and calls storage."
+    },
+    {
+      "ref": "r6.2",
+      "quote": "The storage adapter serializes writes, reads the JSON collection, replaces records by ID, and writes the next complete collection.",
+      "kind": "copied",
+      "explanation": "The storage adapter reads and writes the local JSON collection."
+    }
+  ]
+}
