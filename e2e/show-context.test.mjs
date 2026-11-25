@@ -376,6 +376,27 @@ test('help, version, and unknown flags are complete CLI E2E paths', async () => 
   assert.equal(unknown.stderr, '');
 });
 
+test('the report opens with the platform opener', async t => {
+  if (process.platform === 'win32') return t.skip('Windows opener is checked by hand.');
+  const id = '77777777-1111-4111-8111-111111111111';
+  await writeFile(path.join(project, `${id}.jsonl`), selectionFixture(id));
+  const fakeBin = path.join(temp, 'fake-opener');
+  await mkdir(fakeBin, { recursive: true });
+  const opened = path.join(temp, 'opened.txt');
+  const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+  await writeFile(path.join(fakeBin, opener), `#!/bin/sh\nprintf '%s' "$1" > "${opened}"\n`, { mode: 0o755 });
+  const out = path.join(temp, 'opened.html');
+  const env = { ...process.env, SHOW_CONTEXT_PROJECTS: root, SHOW_CONTEXT_OUT: out, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` };
+  delete env.CONTEXT_LENS_ROOT;
+  const result = await exec(process.execPath, [cli, id, '--static'], { cwd: repo, env });
+  assert.match(result.stdout, /^show-context: 1 reads/);
+  let target = '';
+  for (let tries = 0; tries < 50 && !target; tries++) {
+    try { target = await readFile(opened, 'utf8'); } catch { await new Promise(resolve => setTimeout(resolve, 50)); }
+  }
+  assert.equal(target, out);
+});
+
 test('session selection, errors, and deterministic output', async () => {
   const first = '11111111-1111-4111-8111-111111111111';
   const second = '11111111-2222-4222-8222-222222222222';

@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import { parseTranscript } from '../src/show-context.mjs';
 import { renderShowContextPage } from '../src/show-context-page.mjs';
 import { startServer } from '../src/server.mjs';
 
-const runFile = promisify(execFile);
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const help = `Show a Claude Code conversation and the context it read.
 
@@ -32,6 +30,17 @@ Environment:
 Example:
   show-context abc123 --no-open
 `;
+
+function openTarget(target) {
+  const [command, args] = process.platform === 'win32'
+    ? ['rundll32', ['url.dll,FileProtocolHandler', target]]
+    : process.platform === 'darwin' ? ['open', [target]] : ['xdg-open', [target]];
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore', windowsHide: true, detached: true });
+    child.once('error', reject);
+    child.once('spawn', () => { child.unref(); resolve(); });
+  });
+}
 
 function projectsRoot() {
   return path.resolve(process.env.SHOW_CONTEXT_PROJECTS
@@ -151,7 +160,7 @@ async function main() {
     child.stdout.destroy();
     child.unref();
   }
-  if (!noOpen) await runFile('open', [target]);
+  if (!noOpen) await openTarget(target);
   const note = guessed ? ' · guessed: newest session in this folder' : '';
   console.log(
     `show-context: ${model.reads.length} reads, ${model.totalReadTokens} tokens` +
