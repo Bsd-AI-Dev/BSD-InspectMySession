@@ -254,7 +254,7 @@ function Invoke-ShowContext($s, [bool]$Static) {
   $p = $Port
   if ($p -le 0) { $p = Get-FreePort }
   $env:SHOW_CONTEXT_PORT = [string]$p
-  $env:SHOW_CONTEXT_OUT = Join-Path (Join-Path $HOME '.cache\show-context') ($s.Id + '.html')
+  $env:SHOW_CONTEXT_OUT = Join-Path (Join-Path $HOME '.cache\bsd-ims') ($s.Id + '.html')
 
   $scArgs = @($s.Id, '--no-open')
   if ($Static) { $scArgs += '--static' }

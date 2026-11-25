@@ -136,7 +136,7 @@ async function main() {
   const model = parseTranscript(source, { sessionId: session.id, home: os.homedir() });
   const html = renderShowContextPage(model);
   const output = path.resolve(
-    process.env.SHOW_CONTEXT_OUT || path.join(os.homedir(), '.cache/show-context/show-context.html')
+    process.env.SHOW_CONTEXT_OUT || path.join(os.homedir(), '.cache/bsd-ims/bsd-ims.html')
   );
   await mkdir(path.dirname(output), { recursive: true, mode: 0o700 });
   await writeFile(output, html, { mode: 0o600 });

@@ -24,7 +24,7 @@ To pick up upstream fixes in a clone: `git remote add upstream https://github.co
 - **Per-tool sizes.** The Tools part of the start-up view lists every tool with its own size.
 - **PowerShell session picker** (`scripts/windows/bsd-ims-picker.ps1`).
 - **Transcript contract and checker** (`contract/`) that tell you when a Claude Code update changes the transcript format.
-- The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names, and the default output folder is still `~/.cache/show-context/`.
+- The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names. Pages are written to `~/.cache/bsd-ims/` (upstream uses `~/.cache/show-context/`).
 
 ## Status
 
@@ -96,7 +96,7 @@ Without an id it uses `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest sess
 
 | Variable | Meaning |
 | --- | --- |
-| `SHOW_CONTEXT_OUT` | Output file. Default `~/.cache/show-context/show-context.html` |
+| `SHOW_CONTEXT_OUT` | Output file. Default `~/.cache/bsd-ims/bsd-ims.html` |
 | `SHOW_CONTEXT_PROJECTS` | Claude projects folder. Default `~/.claude/projects` |
 | `SHOW_CONTEXT_PORT` | Port of the live server. Default: a random free port |
 | `SHOW_CONTEXT_IDLE_MS` | Live server idle timeout. Default 30 minutes |

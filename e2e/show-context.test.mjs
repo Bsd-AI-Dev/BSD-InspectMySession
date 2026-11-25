@@ -397,6 +397,20 @@ test('the report opens with the platform opener', async t => {
   assert.equal(target, out);
 });
 
+test('the report is written to ~/.cache/bsd-ims by default', async () => {
+  const id = '12121212-1111-4111-8111-111111111111';
+  await writeFile(path.join(project, `${id}.jsonl`), selectionFixture(id));
+  const home = path.join(temp, 'default-home');
+  await mkdir(home, { recursive: true });
+  const env = { ...process.env, SHOW_CONTEXT_PROJECTS: root, HOME: home, USERPROFILE: home };
+  delete env.SHOW_CONTEXT_OUT;
+  delete env.CONTEXT_LENS_ROOT;
+  const result = await exec(process.execPath, [cli, id, '--static', '--no-open'], { cwd: repo, env });
+  const expected = path.join(home, '.cache', 'bsd-ims', 'bsd-ims.html');
+  assert.ok(result.stdout.trimEnd().endsWith(` · ${expected}`), result.stdout);
+  assert.ok((await stat(expected)).size > 0);
+});
+
 test('session selection, errors, and deterministic output', async () => {
   const first = '11111111-1111-4111-8111-111111111111';
   const second = '11111111-2222-4222-8222-222222222222';
