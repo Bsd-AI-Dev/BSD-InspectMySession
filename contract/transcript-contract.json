@@ -6,11 +6,13 @@
     "upstreamCommit": "0e3890e",
     "how": "Hand-written from reading src/*.mjs and bin/show-context.mjs (now bin/bsd-ims.mjs). Function names are stable anchors; line numbers drift, so use the 'search' strings with grep."
   },
-  "verifiedWith": [],
+  "verifiedWith": [
+    { "date": "2026-11-25", "claudeCode": ["2.1.327"], "sessionsChecked": 5, "where": "Windows 10, VS Code extension sessions" }
+  ],
   "reviewed": {
-    "recordTypes": [],
-    "attachmentTypes": [],
-    "blockTypes": [],
+    "recordTypes": ["ai-title", "artifact-autoreact-ledger", "artifact-comment-monitor", "atis-latch", "cost-state", "file-history-delta", "file-history-snapshot", "frame-link", "last-prompt", "mode", "queue-operation", "session-owner", "system", "tools-used"],
+    "attachmentTypes": ["command_permissions", "credential_org", "edited_text_file", "hook_success", "silent_turn_reminder"],
+    "blockTypes": ["thinking"],
     "toolNames": []
   },
 
