@@ -86,7 +86,7 @@ function Test-Preflight {
 
   $sc = Resolve-ShowContext
   if (-not $sc) {
-    Write-Host "[!!] $CliName not found. Install it with: npm install -g github:Bsd-AI-Dev/BSD-InspectMySession" -ForegroundColor Red; $ok = $false
+    Write-Host "[!!] $CliName not found. Install it with: npm install -g https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz" -ForegroundColor Red; $ok = $false
   } else {
     Write-Host "[OK] ${CliName}: $sc" -ForegroundColor Green
   }
@@ -244,7 +244,7 @@ function Get-View($all, [string]$filter) {
 function Invoke-ShowContext($s, [bool]$Static) {
   $exe = Resolve-ShowContext
   if (-not $exe) {
-    Write-Host "$CliName is not installed. Run: npm install -g github:Bsd-AI-Dev/BSD-InspectMySession" -ForegroundColor Red
+    Write-Host "$CliName is not installed. Run: npm install -g https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz" -ForegroundColor Red
     return $null
   }
 
