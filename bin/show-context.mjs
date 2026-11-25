@@ -91,7 +91,7 @@ async function selectSession(root, idArgument) {
     if (matches.length > 1) ambiguous(matches);
     return { session: matches[0], guessed: false };
   }
-  const slug = path.resolve(process.cwd()).replaceAll('/', '-').replaceAll('.', '-');
+  const slug = path.resolve(process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
   const matches = sessions
     .filter(session => session.project === slug)
     .sort((a, b) => b.mtimeMs - a.mtimeMs || a.id.localeCompare(b.id));

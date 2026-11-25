@@ -441,6 +441,20 @@ test('session selection, errors, and deterministic output', async () => {
   assert.equal((await run(root, ['not-found'])).code, 1);
 });
 
+test('Windows-style folder names map to their session folder', async () => {
+  // Claude Code is assumed to replace every non-alphanumeric character with '-' (C:\projects\sdlc -> C--projects-sdlc).
+  const windowsCwd = path.join(temp, 'C:\\projects\\sdlc_x y');
+  await mkdir(windowsCwd, { recursive: true });
+  const slug = (await realpath(windowsCwd)).replace(/[^a-zA-Z0-9]/g, '-');
+  assert.ok(slug.endsWith('-C--projects-sdlc-x-y'), slug);
+  const id = '88888888-1111-4111-8111-111111111111';
+  await mkdir(path.join(root, slug), { recursive: true });
+  await writeFile(path.join(root, slug, `${id}.jsonl`), selectionFixture(id));
+  const guessed = await run(root, [], { cwd: windowsCwd, clearSession: true });
+  assert.equal(guessed.code, 0, guessed.stdout);
+  assert.match(guessed.stdout, /· 88888888 · guessed: newest session in this folder/);
+});
+
 const scriptErrorProbe = `<script>
   window.onerror = function (message) {
     document.documentElement.setAttribute('data-script-error', String(message));
