@@ -1,7 +1,7 @@
 {
   "name": "bsd-ims",
-  "version": "0.1.0",
-  "description": "Windows-friendly derivative of show-context: show a Claude Code conversation and the context it read.",
+  "version": "0.2.0",
+  "description": "Windows-friendly derivative of show-context: a local web page with all your Claude Code sessions and the context each one read.",
   "type": "module",
   "keywords": [
     "claude-code",

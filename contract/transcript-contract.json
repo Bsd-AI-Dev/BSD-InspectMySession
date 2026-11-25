@@ -17,7 +17,7 @@
   },
 
   "storage": {
-    "usedBy": ["bin/bsd-ims.mjs:allSessions", "bin/bsd-ims.mjs:selectSession"],
+    "usedBy": ["src/sessions.mjs:allSessions", "src/sessions.mjs:sessionMeta", "bin/bsd-ims.mjs:selectSession"],
     "layout": "<projectsRoot>/<project-folder>/<session-id>.jsonl (files directly inside the project folder)",
     "projectsRoot": "~/.claude/projects (override: SHOW_CONTEXT_PROJECTS)",
     "sessionEnvVar": "CLAUDE_CODE_SESSION_ID",

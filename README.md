@@ -4,7 +4,7 @@
 
 BSD InspectMySession is an unofficial utility for inspecting Claude Code sessions. It is not affiliated with or endorsed by Anthropic.
 
-It reads one local session transcript and builds one local page: what loaded at session start (system prompt, tools, CLAUDE.md files, skills, MCP), then every file, search, MCP result, skill and web page the session read, sized by real token use.
+It opens one local web page with a menu of all your Claude Code sessions, grouped by project. For the session you pick it shows what loaded at session start (system prompt, tools, CLAUDE.md files, skills, MCP), then every file, search, MCP result, skill and web page the session read, sized by real token use, and the whole conversation.
 
 ## Credit and relationship to upstream
 
@@ -21,41 +21,35 @@ To pick up upstream fixes in a clone: `git remote add upstream https://github.co
 - **Opens the page on Windows and Linux.** Upstream called the macOS `open` command. `bsd-ims` uses `rundll32` on Windows, `open` on macOS and `xdg-open` elsewhere.
 - **Finds the session for the current folder on Windows.** Project folders are matched with every non-alphanumeric character of the path replaced by `-` (for example `C:\projects\sdlc` → `C--projects-sdlc`). Upstream only replaced `/` and `.`.
 - **No console window flash** when the live server starts on Windows.
+- **Finds `claude.exe` on Windows** for *Where did this come from?* (`%USERPROFILE%\.local\bin\claude.exe`).
+- **Works with VS Code sessions** (their main request is labelled `sdk`) and with sessions that start with an API error.
 - **Per-tool sizes.** The Tools part of the start-up view lists every tool with its own size.
-- **PowerShell session picker** (`scripts/windows/bsd-ims-picker.ps1`).
+- **One server and a session menu.** Upstream starts a new server for every page. Here one local server serves a menu of all sessions, grouped by project, and every session page.
+- **Install and test scripts for Windows** (`scripts/windows/`).
 - **Transcript contract and checker** (`contract/`) that tell you when a Claude Code update changes the transcript format.
 - The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names. Pages are written to `~/.cache/bsd-ims/` (upstream uses `~/.cache/show-context/`).
 
 ## Status
 
-The automated tests pass on Linux. The Windows changes (opening the page, matching the current folder, the hidden server window) are not yet confirmed on Windows; the PowerShell picker has been used on Windows 10 with PowerShell 7.
+The automated tests pass on Linux. Version 0.1 was tested on Windows 10 with PowerShell 7 and Claude Code 2.1.327: opening the page, matching the current folder, per-tool sizes and *Where did this come from?* all worked. The session menu and the single server (version 0.2) are new and not yet tested on Windows.
 
-## Install (Windows)
+## Install or update (Windows)
 
-Requires Node.js 22 or later. No dependencies.
-
-```powershell
-cd $env:TEMP
-Invoke-WebRequest https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz -OutFile bsd-ims-main.tar.gz
-npm install -g .\bsd-ims-main.tar.gz
-bsd-ims --version
-```
-
-This downloads the latest `main` from GitHub and installs it from the file; git is not needed. (Recent npm versions may refuse `npm install -g <web address>` with `EALLOWREMOTE`, which is why the file is downloaded first.) Repeat the same commands to update, and run `npm uninstall -g bsd-ims` to remove it.
-
-Or, for development, from a clone:
+Requires Node.js 22 or later. No dependencies, and git is not needed. In PowerShell 7:
 
 ```powershell
-git clone https://github.com/Bsd-AI-Dev/BSD-InspectMySession
-cd BSD-InspectMySession
-npm link
+Invoke-WebRequest https://raw.githubusercontent.com/Bsd-AI-Dev/BSD-InspectMySession/main/scripts/windows/install.ps1 -OutFile $env:TEMP\bsd-ims-install.ps1; pwsh -ExecutionPolicy Bypass -File $env:TEMP\bsd-ims-install.ps1
 ```
 
-The package is not published on npm.
+`scripts/windows/install.ps1` checks Node.js, stops running bsd-ims servers, downloads the latest `main` from GitHub, installs it with npm from the downloaded file (recent npm versions refuse to install from a web address with `EALLOWREMOTE`), and checks the result. Run the same command to update. To remove: `npm uninstall -g bsd-ims`.
+
+**Older version.** Version 0.1, with the PowerShell session picker instead of the web menu, is kept on the `version-0.1` branch. Install it by adding `-Branch version-0.1` at the end of the command above.
+
+For development, from a clone: `git clone https://github.com/Bsd-AI-Dev/BSD-InspectMySession`, then `npm link` in that folder. The package is not published on npm.
 
 ### Test on Windows
 
-One command downloads and runs `scripts/windows/bsd-ims-test.ps1`. It installs the latest version, opens the newest session of a project folder, asks a few yes/no questions, runs the transcript checker, and saves a report to `bsd-ims-test-report.txt` on your Desktop:
+`scripts/windows/bsd-ims-test.ps1` installs or updates bsd-ims, opens the newest session of a project folder, checks that only one server runs, asks a few yes/no questions, runs the transcript checker, and saves a report to `bsd-ims-test-report.txt` on your Desktop:
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/Bsd-AI-Dev/BSD-InspectMySession/main/scripts/windows/bsd-ims-test.ps1 -OutFile $env:TEMP\bsd-ims-test.ps1; pwsh -ExecutionPolicy Bypass -File $env:TEMP\bsd-ims-test.ps1 -ProjectFolder 'C:\projects\sdlc'
@@ -65,17 +59,22 @@ Change `C:\projects\sdlc` to a folder where you used Claude Code.
 
 ## Use
 
-### Session picker (PowerShell)
+### The session menu
+
+Go to a folder where you used Claude Code and run:
 
 ```powershell
-& "$(npm root -g)\bsd-ims\scripts\windows\bsd-ims-picker.ps1"
+bsd-ims
 ```
 
-(From a clone: `pwsh -File scripts\windows\bsd-ims-picker.ps1`.)
+Your browser opens a page with a menu on the left: all sessions, grouped by project, newest first, with date, source (`vsc` for the VS Code extension, `cli` for the terminal), size and first message. The newest session of the current folder is selected and shown on the right. You can:
 
-Lists every session, newest first. Type to filter, Up/Down to move, Enter for the action menu (open live, static report, copy URL, show transcript). Tab switches between all folders and the current folder, F3 filters by source (VS Code or terminal), F2 lists and stops running servers. Run `Get-Help` on the script with `-Detailed` for the options (`-SkipPreflight`, `-Scope`, `-Days`, `-Port`, `-IdleHours`, `-NoBrowser`, `-DumpFirstRecord`).
+- click any session to show it on the right;
+- filter by text, project, date or id, and by source;
+- copy a session's transcript path (**Copy path**);
+- reload the list (**Refresh**) and stop the server (**Stop server**).
 
-The picker sets `SHOW_CONTEXT_CLAUDE_BIN` to the native `claude.exe` it finds, runs `bsd-ims` from the session's original folder, and opens the URL in your browser.
+One local server serves the menu and all session pages. Running `bsd-ims` again reuses it. It stops by itself after an hour without use, or with **Stop server** or `bsd-ims --stop`. Each session page is rebuilt from its transcript when you open it.
 
 ### Command line
 
@@ -83,12 +82,13 @@ The picker sets `SHOW_CONTEXT_CLAUDE_BIN` to the native `claude.exe` it finds, r
 bsd-ims <session-id-or-prefix>
 ```
 
-Without an id it uses `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest session started in the current folder.
+Without an id it selects the session in `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest session started in the current folder.
 
 | Option | What it does |
 | --- | --- |
 | `--no-open` | Print the live URL, don't open the browser |
-| `--static` | Write a static page, no local server (*Where did this come from?* does not work there) |
+| `--static` | Write a static page of this session only, no local server (*Where did this come from?* does not work there) |
+| `--stop` | Stop the live server |
 | `--help` | Show all options and environment variables |
 | `--version` | Show the version |
 
@@ -99,13 +99,13 @@ Without an id it uses `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest sess
 | `SHOW_CONTEXT_OUT` | Output file. Default `~/.cache/bsd-ims/bsd-ims.html` |
 | `SHOW_CONTEXT_PROJECTS` | Claude projects folder. Default `~/.claude/projects` |
 | `SHOW_CONTEXT_PORT` | Port of the live server. Default: a random free port |
-| `SHOW_CONTEXT_IDLE_MS` | Live server idle timeout. Default 30 minutes |
-| `SHOW_CONTEXT_CLAUDE_BIN` | Claude Code binary for *Where did this come from?*. Default `claude`. On Windows, point it at `claude.exe`: Node cannot start a `.cmd` shim |
+| `SHOW_CONTEXT_IDLE_MS` | Live server idle timeout. Default 1 hour |
+| `SHOW_CONTEXT_CLAUDE_BIN` | Claude Code binary for *Where did this come from?*. Default: `%USERPROFILE%\.local\bin\claude.exe` on Windows if it exists, otherwise `claude`. Node cannot start a `.cmd` shim, so on Windows point it at a `claude.exe` |
 
 ## Privacy and how it works
 
-- It reads one local session transcript and never changes it.
-- The page is a single self-contained HTML file. The optional server binds to `127.0.0.1` only, and every route needs a random 32-byte token.
+- It reads local session transcripts and never changes them. The menu reads only the start of each transcript (title, folder, source).
+- The live server binds to `127.0.0.1` only, and every route needs a random 32-byte token. Its address is kept in `~/.cache/bsd-ims/server.json`. `--static` writes a single self-contained HTML file instead.
 - Token counts come from the real input token use of each model call. When several items enter one call together, the increase is split by their character count.
 - **Only *Where did this come from?* uses the network.** It runs your local Claude Code CLI on a fork of the session with no tools, and costs tokens like any Claude Code call. The fork is not saved, and your session stays untouched.
 
