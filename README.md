@@ -53,6 +53,16 @@ npm link
 
 The package is not published on npm.
 
+### Test on Windows
+
+One command downloads and runs `scripts/windows/bsd-ims-test.ps1`. It installs the latest version, opens the newest session of a project folder, asks a few yes/no questions, runs the transcript checker, and saves a report to `bsd-ims-test-report.txt` on your Desktop:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/Bsd-AI-Dev/BSD-InspectMySession/main/scripts/windows/bsd-ims-test.ps1 -OutFile $env:TEMP\bsd-ims-test.ps1; pwsh -ExecutionPolicy Bypass -File $env:TEMP\bsd-ims-test.ps1 -ProjectFolder 'C:\projects\sdlc'
+```
+
+Change `C:\projects\sdlc` to a folder where you used Claude Code.
+
 ## Use
 
 ### Session picker (PowerShell)
