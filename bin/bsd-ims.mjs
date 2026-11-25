@@ -92,8 +92,10 @@ async function selectSession(root, idArgument) {
     return { session: matches[0], guessed: false };
   }
   const slug = path.resolve(process.cwd()).replace(/[^a-zA-Z0-9]/g, '-');
-  const matches = sessions
-    .filter(session => session.project === slug)
+  // Exact match first; otherwise ignore case (Windows may store the drive letter as c-- instead of C--).
+  let inFolder = sessions.filter(session => session.project === slug);
+  if (!inFolder.length) inFolder = sessions.filter(session => session.project.toLowerCase() === slug.toLowerCase());
+  const matches = inFolder
     .sort((a, b) => b.mtimeMs - a.mtimeMs || a.id.localeCompare(b.id));
   if (!matches.length) throw new Error('no session found for this folder');
   return { session: matches[0], guessed: true };

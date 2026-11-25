@@ -455,6 +455,20 @@ test('Windows-style folder names map to their session folder', async () => {
   assert.match(guessed.stdout, /· 88888888 · guessed: newest session in this folder/);
 });
 
+test('a project folder that differs only in letter case still matches', async () => {
+  // Claude Code on Windows stores C:\projects\sdlc as c--projects-sdlc (lowercase drive letter).
+  const cwd = path.join(temp, 'CaseDir');
+  await mkdir(cwd, { recursive: true });
+  const slug = (await realpath(cwd)).replace(/[^a-zA-Z0-9]/g, '-');
+  assert.notEqual(slug.toLowerCase(), slug);
+  const id = '99999999-1111-4111-8111-111111111111';
+  await mkdir(path.join(root, slug.toLowerCase()), { recursive: true });
+  await writeFile(path.join(root, slug.toLowerCase(), `${id}.jsonl`), selectionFixture(id));
+  const guessed = await run(root, [], { cwd, clearSession: true });
+  assert.equal(guessed.code, 0, guessed.stdout);
+  assert.match(guessed.stdout, /· 99999999 · guessed: newest session in this folder/);
+});
+
 const scriptErrorProbe = `<script>
   window.onerror = function (message) {
     document.documentElement.setAttribute('data-script-error', String(message));

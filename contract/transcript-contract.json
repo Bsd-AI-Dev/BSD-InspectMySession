@@ -22,7 +22,7 @@
     "slugRules": {
       "upstream": "absolute cwd with every '/' and '.' replaced by '-'",
       "proposed": "absolute cwd with every non-alphanumeric character replaced by '-'",
-      "inUse": "proposed (bsd-ims). A folder that matches only 'proposed' confirms the rule; one that matches neither means it is wrong."
+      "inUse": "proposed (bsd-ims), compared ignoring case: Claude Code on Windows was seen storing C:\\projects\\sdlc as c--projects-sdlc. A folder that matches only 'proposed' confirms the rule; one that matches neither means it is wrong."
     },
     "search": ["selectSession", "replace(/[^a-zA-Z0-9]/g", "CLAUDE_CODE_SESSION_ID", ".claude/projects"],
     "effect": "Wrong layout or slug rule: no session found for the current folder, or the wrong one is guessed."
