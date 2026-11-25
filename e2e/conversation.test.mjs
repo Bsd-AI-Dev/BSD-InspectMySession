@@ -934,3 +934,25 @@ test('menu shows the selected session and switches sessions', async t => {
     await runCli(['--stop'], env);
   }
 });
+
+test('a missing Claude Code CLI gives an answer that says how to fix it', async () => {
+  const hubDir = path.join(temp, 'hub-missing-claude');
+  await mkdir(hubDir, { recursive: true });
+  const env = {
+    SHOW_CONTEXT_CLAUDE_BIN: path.join(temp, 'no-such-claude'),
+    SHOW_CONTEXT_IDLE_MS: '20000',
+    SHOW_CONTEXT_OUT: path.join(hubDir, 'page.html')
+  };
+  const url = await waitForUrl(start([], env));
+  try {
+    const response = await fetch(`${sessionPage(url)}ask`, {
+      method: 'POST',
+      headers: { origin: new URL(url).origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'text', question: 'Where?', text: 'Alpha source', messageIndex: 2 })
+    });
+    assert.equal(response.status, 500);
+    assert.match((await response.json()).error, /Claude Code CLI was not found: .*no-such-claude\. .*SHOW_CONTEXT_CLAUDE_BIN/);
+  } finally {
+    await runCli(['--stop'], env);
+  }
+});
