@@ -143,7 +143,8 @@ async function main() {
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--serve', session.file, session.id], {
       detached: true,
       env: process.env,
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true
     });
     target = await new Promise((resolve, reject) => {
       let line = '';
