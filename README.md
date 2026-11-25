@@ -1,81 +1,125 @@
-# show-context
+# BSD InspectMySession (`bsd-ims`)
 
-**See what fills your Claude Code context window, and where each answer came from.**
+**See what fills a Claude Code session's context window, and where each answer came from. Made to work on Windows.**
 
-```text
-npx show-context
-```
+BSD InspectMySession is an unofficial utility for inspecting Claude Code sessions. It is not affiliated with or endorsed by Anthropic.
 
-Run it inside any Claude Code session (as `! npx show-context`). It opens one local page with the whole conversation and every file, search, MCP result, skill and web page the session read, sized by real token use.
+It reads one local session transcript and builds one local page: what loaded at session start (system prompt, tools, CLAUDE.md files, skills, MCP), then every file, search, MCP result, skill and web page the session read, sized by real token use.
 
-<p align="center">
-  <img src="docs/demo.webp" alt="show-context: select an answer, trace it to its source, see every read and its token size" width="400">
-</p>
+## Credit and relationship to upstream
 
-## Why
+This project is a derivative of [show-context](https://github.com/bernatsampera/show-context) by its contributors (version 0.2.1, MIT license). Nearly all of the code is theirs. This fork renames the command and adds the changes listed below; it is not the original project and is not endorsed by its author. The upstream license and copyright notice are kept in [LICENSE](LICENSE).
 
-I asked Claude Code a simple question about the Express codebase. Before it read a single line of code, the session already held **33,003 tokens**: 12k of tool definitions, 7.8k of skill descriptions, 6.4k of MCP instructions. The file reads that answered the question? **1,873 tokens.**
-
-You can't see any of that from the chat. show-context makes it visible, so you know what to trim and which answers to trust.
-
-## What you get
-
-**Where did this come from?** Select any sentence Claude wrote and ask. A split view links it, with numbered lines, to the exact passages in the files it read. Select text inside a tool call to ask why the call was made.
-
-![Where did this come from: an answer linked to the exact lines in server.js, todos.js and storage.js](docs/screenshot-ask.png)
-
-**Show context mode.** What loaded at session start (system prompt, tools, CLAUDE.md, skills, MCP), then each read in order. Block height grows with token size, colors mark File, Explore, MCP, Skill and Web reads. A size filter hides the small stuff (under 2,000 tokens by default). Click a row to see its full text.
+To pick up upstream fixes in a clone: `git remote add upstream https://github.com/bernatsampera/show-context` (if not already set), then `git fetch upstream` and `git merge upstream/master`.
 
 ![Show context mode: start load parts and session reads](docs/screenshot.png)
 
-## Install
+*Screenshot from the upstream project. It does not show the per-tool rows added here.*
 
-```text
-npm install -g show-context
+## What is different from upstream
+
+- **Opens the page on Windows and Linux.** Upstream called the macOS `open` command. `bsd-ims` uses `rundll32` on Windows, `open` on macOS and `xdg-open` elsewhere.
+- **Finds the session for the current folder on Windows.** Project folders are matched with every non-alphanumeric character of the path replaced by `-` (for example `C:\projects\sdlc` → `C--projects-sdlc`). Upstream only replaced `/` and `.`.
+- **No console window flash** when the live server starts on Windows.
+- **Per-tool sizes.** The Tools part of the start-up view lists every tool with its own size.
+- **PowerShell session picker** (`scripts/windows/sc-sessions.ps1`).
+- **Transcript contract and checker** (`contract/`) that tell you when a Claude Code update changes the transcript format.
+- The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names, and the default output folder is still `~/.cache/show-context/`.
+
+## Status
+
+The automated tests pass on Linux. The Windows changes (opening the page, matching the current folder, the hidden server window) are not yet confirmed on Windows; the PowerShell picker has been used on Windows 10 with PowerShell 7.
+
+## Install (Windows)
+
+Requires Node.js 22 or later. No dependencies.
+
+```powershell
+npm install -g github:Bsd-AI-Dev/BSD-InspectMySession
 ```
 
-Or run it without installing: `npx show-context`. Requires Node.js 22 or later. No dependencies.
+Or from a clone:
+
+```powershell
+git clone https://github.com/Bsd-AI-Dev/BSD-InspectMySession
+cd BSD-InspectMySession
+npm link
+```
+
+The package is not published on npm.
 
 ## Use
 
-Inside Claude Code:
+### Session picker (PowerShell)
 
-```text
-! show-context
+```powershell
+pwsh -File scripts\windows\sc-sessions.ps1
 ```
 
-From a terminal, pick a session by ID or prefix:
+Lists every session, newest first. Type to filter, Up/Down to move, Enter for the action menu (open live, static report, copy URL, show transcript). Tab switches between all folders and the current folder, F3 filters by source (VS Code or terminal), F2 lists and stops running servers. Run `Get-Help scripts\windows\sc-sessions.ps1 -Detailed` for the options (`-SkipPreflight`, `-Scope`, `-Days`, `-Port`, `-IdleHours`, `-NoBrowser`, `-DumpFirstRecord`).
 
-```text
-show-context <session-id-or-prefix>
+The picker sets `SHOW_CONTEXT_CLAUDE_BIN` to the native `claude.exe` it finds, runs `bsd-ims` from the session's original folder, and opens the URL in your browser.
+
+### Command line
+
+```powershell
+bsd-ims <session-id-or-prefix>
 ```
+
+Without an id it uses `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest session started in the current folder.
 
 | Option | What it does |
 | --- | --- |
 | `--no-open` | Print the live URL, don't open the browser |
-| `--static` | Write a static page, no local server |
+| `--static` | Write a static page, no local server (*Where did this come from?* does not work there) |
 | `--help` | Show all options and environment variables |
+| `--version` | Show the version |
 
-Environment variables: `SHOW_CONTEXT_OUT` (output file, default `~/.cache/show-context/show-context.html`), `SHOW_CONTEXT_PROJECTS` (Claude projects folder), `SHOW_CONTEXT_PORT`, `SHOW_CONTEXT_IDLE_MS` (server idle timeout, default 30 minutes), `SHOW_CONTEXT_CLAUDE_BIN` (Claude Code binary).
+### Environment variables
+
+| Variable | Meaning |
+| --- | --- |
+| `SHOW_CONTEXT_OUT` | Output file. Default `~/.cache/show-context/show-context.html` |
+| `SHOW_CONTEXT_PROJECTS` | Claude projects folder. Default `~/.claude/projects` |
+| `SHOW_CONTEXT_PORT` | Port of the live server. Default: a random free port |
+| `SHOW_CONTEXT_IDLE_MS` | Live server idle timeout. Default 30 minutes |
+| `SHOW_CONTEXT_CLAUDE_BIN` | Claude Code binary for *Where did this come from?*. Default `claude`. On Windows, point it at `claude.exe`: Node cannot start a `.cmd` shim |
 
 ## Privacy and how it works
 
 - It reads one local session transcript and never changes it.
 - The page is a single self-contained HTML file. The optional server binds to `127.0.0.1` only, and every route needs a random 32-byte token.
 - Token counts come from the real input token use of each model call. When several items enter one call together, the increase is split by their character count.
-- Reads are files, shell reads and searches, MCP reads, skills and web results. Writes, edits and commands that run things are not reads.
 - **Only *Where did this come from?* uses the network.** It runs your local Claude Code CLI on a fork of the session with no tools, and costs tokens like any Claude Code call. The fork is not saved, and your session stays untouched.
+
+## Transcript checker
+
+`bsd-ims` depends on Claude Code's transcript format, which is not documented and can change. `contract/transcript-contract.json` lists every field, record type, attachment type, tool name, text marker and `claude` CLI flag the code relies on, and what breaks if it changes. `contract/check-transcript.mjs` checks real transcripts against it, runs the parser on them, and checks `claude --help` for the flags the ask feature uses.
+
+```powershell
+node contract/check-transcript.mjs --latest 5
+```
+
+(`npm run check -- --latest 5` does the same.) Exit code 0 means OK, 1 warnings, 2 failures.
+
+- **First run:** the checker lists record, attachment, block and tool types it does not know as INFO. Look at them once. If there are no FAIL lines and nothing looks important, run it again with `--stamp`. That records the Claude Code version and marks those types as reviewed, so later runs only show new changes.
+- `--fix-prompt` prints a ready-made prompt that describes the problems for Claude Code.
+- Other options: `--json`, `--no-parse`, `--no-cli`, `--projects`, `--src`, `--contract`. See `--help`.
+
+### When Claude Code updates
+
+1. Run `node contract/check-transcript.mjs --latest 5`.
+2. If it reports WARN or FAIL, run it again with `--fix-prompt` and give the output to Claude Code in this repository.
 
 ## Limits
 
-- It depends on the Claude Code transcript format, which can change.
-- Subagent reads are not shown yet.
+- It depends on an unofficial transcript format, which can change without notice. Use the checker above.
+- Subagent reads are not shown.
+- Per-tool sizes are estimates: the measured Tools total is split by the length of each tool's definition. The Instructions breakdown uses the same method.
+- The Tools and System prompt parts need `api-request-shape` records in the transcript. Sessions without them show *Not recorded in this session file* instead.
+- `Grep` and `Glob` tool results are not counted as reads.
 - *Where did this come from?* works with Claude Code only.
-
-## Contributing
-
-Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [good first issues](https://github.com/bernatsampera/show-context/labels/good%20first%20issue).
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE). The original copyright notice of show-context is kept; changes in this fork are additionally copyright Bsd-AI-Dev.
