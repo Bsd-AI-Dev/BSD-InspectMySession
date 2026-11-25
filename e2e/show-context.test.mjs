@@ -499,6 +499,31 @@ test('generated page runs without script errors and renders every segment', asyn
   assert.ok(dom.includes(`${model.reads.length} reads · ${formatTokens(model.totalReadTokens)} tokens`));
 });
 
+test('Tools and Instructions show one sized row per item', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install google-chrome or chromium.');
+  const { html, model } = await mainPage();
+  const resultProbe = `<script>
+    const rows = prefix => [...document.querySelectorAll('.seg.start-subpart')]
+      .filter(row => row.dataset.startKey.startsWith(prefix))
+      .map(row => row.querySelector('.name').textContent + '|' + row.querySelector('.size').textContent);
+    document.documentElement.setAttribute('data-tool-rows', JSON.stringify(rows('tools-')));
+    document.documentElement.setAttribute('data-instruction-rows', JSON.stringify(rows('instructions-')));
+  </script>`;
+  const probeFile = path.join(temp, 'items-probe.html');
+  await writeFile(
+    probeFile,
+    html.replace('<head>', `<head>${scriptErrorProbe}`).replace('</body>', `${resultProbe}</body>`)
+  );
+  const dom = await chromeDom(`${probeFile}?min=0`, 'chrome-items-profile');
+  assert.doesNotMatch(dom, /<html[^>]*data-script-error=/);
+  const attribute = name => JSON.parse(dom.match(new RegExp(`${name}="([^"]*)"`))[1].replaceAll('&quot;', '"'));
+  const expected = key => model.startLoad.parts.find(part => part.key === key).items
+    .map(item => `${item.name}|${formatTokens(item.size)}`);
+  assert.ok(expected('tools').length >= 2);
+  assert.deepEqual(attribute('data-tool-rows'), expected('tools'));
+  assert.deepEqual(attribute('data-instruction-rows'), expected('instructions'));
+});
+
 test('size filter hides rows under 2k tokens by default, start parts included', async t => {
   if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install google-chrome or chromium.');
   const { html, model } = await mainPage();
@@ -552,6 +577,20 @@ test('start load has named parts with exact measured sizes', async () => {
     instructions.items.reduce((sum, item) => sum + item.size, 0),
     instructions.size
   );
+  const shapeTools = transcript.find(record => record.type === 'api-request-shape').shape.tools;
+  const tools = parts.find(part => part.name === 'Tools');
+  assert.deepEqual(
+    tools.items.map(item => ({ name: item.name, text: item.text, ref: item.ref })),
+    shapeTools.map((tool, index) => ({
+      name: tool.name,
+      text: `${tool.name}: ${tool.description.trim().split('\n')[0]}`,
+      ref: `s-tools-${index}`
+    }))
+  );
+  assert.equal(tools.items.reduce((sum, item) => sum + item.size, 0), tools.size);
+  const largest = shapeTools.reduce((best, tool, index) =>
+    JSON.stringify(tool).length > JSON.stringify(shapeTools[best]).length ? index : best, 0);
+  assert.equal(Math.max(...tools.items.map(item => item.size)), tools.items[largest].size);
   assert.equal(
     parts.reduce((sum, part) => sum + part.size, 0),
     model.startLoadTokens

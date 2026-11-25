@@ -136,15 +136,17 @@ export function buildStartLoad(records, total, options = {}) {
 
   if (shape?.tools?.length) {
     const toolNames = shape.tools.map(tool => tool.name || tool.definition?.name).filter(Boolean);
-    const toolText = shape.tools.map(tool => {
+    const items = shape.tools.map(tool => {
       const name = tool.name || tool.definition?.name || 'Tool';
       const description = tool.description || tool.definition?.description || '';
-      return `${name}: ${firstLine(description)}`.trimEnd();
-    }).join('\n');
+      return { name, text: `${name}: ${firstLine(description)}`.trimEnd(), size: 0,
+        charCount: Math.max(1, JSON.stringify(tool).length) };
+    });
+    const toolText = items.map(item => item.text).join('\n');
     const sample = toolNames.slice(0, 3).join(', ');
     // Show the short list, but weigh the size by the full definitions the model receives.
     addPart(parts, 'tools', 'Tools', `${toolNames.length} tools (${sample}${toolNames.length > 3 ? ', …' : ''})`, toolText,
-      { charCount: JSON.stringify(shape.tools).length });
+      { charCount: JSON.stringify(shape.tools).length, items });
   }
 
   const reminderSections = userBlocks.flatMap(instructionSections);
@@ -209,8 +211,9 @@ export function buildStartLoad(records, total, options = {}) {
 
   parts.sort((a, b) => PART_ORDER.indexOf(a.key) - PART_ORDER.indexOf(b.key));
   exactShares(parts, Math.max(0, Math.round(total)));
-  const instructions = parts.find(part => part.key === 'instructions');
-  if (instructions?.items?.length) exactShares(instructions.items, instructions.size);
+  for (const part of parts) {
+    if (part.items?.length) exactShares(part.items, part.size);
+  }
   for (const part of parts) {
     part.ref = `s-${part.key}`;
     delete part.charCount;
