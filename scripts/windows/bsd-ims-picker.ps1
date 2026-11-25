@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Pick a Claude Code session and open it in show-context (live mode, ask feature enabled).
+  Pick a Claude Code session and open it in BSD InspectMySession (bsd-ims; live mode, ask feature enabled).
 
 .DESCRIPTION
   Lists every Claude Code session (VS Code extension and terminal) newest first, lets you
-  filter and pick one, then launches show-context for it and opens the page in your browser.
+  filter and pick one, then launches bsd-ims for it and opens the page in your browser.
 
   Keys in the list:
     Up/Down, PgUp/PgDn, Home/End   move
@@ -13,10 +13,10 @@
     Enter                          open the action menu for the selected session
     Tab                            toggle scope: all folders / only the folder you started in
     F3                             cycle source filter: All / vsc / cli
-    F2                             manage running show-context servers
+    F2                             manage running bsd-ims servers
     Esc                            clear the filter, or quit when the filter is empty
 
-.PARAMETER SkipPreflight   Skip the environment checks (Node, show-context, claude.exe).
+.PARAMETER SkipPreflight   Skip the environment checks (Node, bsd-ims, claude.exe).
 .PARAMETER Scope           All (default) or Current (only sessions started in the current folder).
 .PARAMETER Days            Only show sessions modified in the last N days (0 = no limit).
 .PARAMETER Port            Fixed port for the live server (0 = random free port).
@@ -86,7 +86,7 @@ function Test-Preflight {
 
   $sc = Resolve-ShowContext
   if (-not $sc) {
-    Write-Host "[!!] $CliName not found. Install it with: npm install -g https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz" -ForegroundColor Red; $ok = $false
+    Write-Host "[!!] $CliName not found. Install instructions: https://github.com/Bsd-AI-Dev/BSD-InspectMySession#install-windows" -ForegroundColor Red; $ok = $false
   } else {
     Write-Host "[OK] ${CliName}: $sc" -ForegroundColor Green
   }
@@ -239,12 +239,12 @@ function Get-View($all, [string]$filter) {
   return @($v)
 }
 
-# ---------------------------------------------------------------- show-context
+# ---------------------------------------------------------------- bsd-ims
 
 function Invoke-ShowContext($s, [bool]$Static) {
   $exe = Resolve-ShowContext
   if (-not $exe) {
-    Write-Host "$CliName is not installed. Run: npm install -g https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz" -ForegroundColor Red
+    Write-Host "$CliName is not installed. Install instructions: https://github.com/Bsd-AI-Dev/BSD-InspectMySession#install-windows" -ForegroundColor Red
     return $null
   }
 
@@ -271,12 +271,12 @@ function Invoke-ShowContext($s, [bool]$Static) {
 }
 
 function Open-Live($s) {
-  Write-Host 'Starting show-context...' -ForegroundColor Cyan
+  Write-Host 'Starting bsd-ims...' -ForegroundColor Cyan
   $out = Invoke-ShowContext $s $false
   if ($null -eq $out) { Wait-AnyKey; return }
   $url = [regex]::Match($out, 'http://127\.0\.0\.1:\d+\S*')
   if (-not $url.Success) {
-    Write-Host 'show-context did not return a URL:' -ForegroundColor Red
+    Write-Host 'bsd-ims did not return a URL:' -ForegroundColor Red
     Write-Host $out
     Wait-AnyKey; return
   }
@@ -298,7 +298,7 @@ function Open-Static($s) {
   if ($null -eq $out) { Wait-AnyKey; return }
   $file = $env:SHOW_CONTEXT_OUT
   if (-not (Test-Path -LiteralPath $file)) {
-    Write-Host 'show-context did not write a report:' -ForegroundColor Red
+    Write-Host 'bsd-ims did not write a report:' -ForegroundColor Red
     Write-Host $out
     Wait-AnyKey; return
   }
@@ -351,7 +351,7 @@ function Show-Actions($s) {
 function Show-Servers {
   while ($true) {
     Clear-Host
-    Write-Host 'Running show-context servers' -ForegroundColor Cyan
+    Write-Host 'Running bsd-ims servers' -ForegroundColor Cyan
     $procs = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
       Where-Object { $_.CommandLine -match ('[\\/]' + [regex]::Escape("$CliName.mjs")) -and $_.CommandLine -match '--serve' })
     if ($procs.Count -eq 0) {

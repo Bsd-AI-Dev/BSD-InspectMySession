@@ -22,7 +22,7 @@ To pick up upstream fixes in a clone: `git remote add upstream https://github.co
 - **Finds the session for the current folder on Windows.** Project folders are matched with every non-alphanumeric character of the path replaced by `-` (for example `C:\projects\sdlc` → `C--projects-sdlc`). Upstream only replaced `/` and `.`.
 - **No console window flash** when the live server starts on Windows.
 - **Per-tool sizes.** The Tools part of the start-up view lists every tool with its own size.
-- **PowerShell session picker** (`scripts/windows/sc-sessions.ps1`).
+- **PowerShell session picker** (`scripts/windows/bsd-ims-picker.ps1`).
 - **Transcript contract and checker** (`contract/`) that tell you when a Claude Code update changes the transcript format.
 - The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names, and the default output folder is still `~/.cache/show-context/`.
 
@@ -35,10 +35,13 @@ The automated tests pass on Linux. The Windows changes (opening the page, matchi
 Requires Node.js 22 or later. No dependencies.
 
 ```powershell
-npm install -g https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz
+cd $env:TEMP
+Invoke-WebRequest https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz -OutFile bsd-ims-main.tar.gz
+npm install -g .\bsd-ims-main.tar.gz
+bsd-ims --version
 ```
 
-This downloads the latest `main` from GitHub; git is not needed. Run the same command again to update, and `npm uninstall -g bsd-ims` to remove it. Check with `bsd-ims --version`.
+This downloads the latest `main` from GitHub and installs it from the file; git is not needed. (Recent npm versions may refuse `npm install -g <web address>` with `EALLOWREMOTE`, which is why the file is downloaded first.) Repeat the same commands to update, and run `npm uninstall -g bsd-ims` to remove it.
 
 Or, for development, from a clone:
 
@@ -55,10 +58,10 @@ The package is not published on npm.
 ### Session picker (PowerShell)
 
 ```powershell
-& "$(npm root -g)\bsd-ims\scripts\windows\sc-sessions.ps1"
+& "$(npm root -g)\bsd-ims\scripts\windows\bsd-ims-picker.ps1"
 ```
 
-(From a clone: `pwsh -File scripts\windows\sc-sessions.ps1`.)
+(From a clone: `pwsh -File scripts\windows\bsd-ims-picker.ps1`.)
 
 Lists every session, newest first. Type to filter, Up/Down to move, Enter for the action menu (open live, static report, copy URL, show transcript). Tab switches between all folders and the current folder, F3 filters by source (VS Code or terminal), F2 lists and stops running servers. Run `Get-Help` on the script with `-Detailed` for the options (`-SkipPreflight`, `-Scope`, `-Days`, `-Port`, `-IdleHours`, `-NoBrowser`, `-DumpFirstRecord`).
 
@@ -100,15 +103,13 @@ Without an id it uses `CLAUDE_CODE_SESSION_ID` if set, otherwise the newest sess
 
 `bsd-ims` depends on Claude Code's transcript format, which is not documented and can change. `contract/transcript-contract.json` lists every field, record type, attachment type, tool name, text marker and `claude` CLI flag the code relies on, and what breaks if it changes. `contract/check-transcript.mjs` checks real transcripts against it, runs the parser on them, and checks `claude --help` for the flags the ask feature uses.
 
-The checker is not part of the installed package. Run it from a clone, or download the source without git:
+After the install above, the checker is in the installed folder:
 
 ```powershell
-cd $env:TEMP
-Invoke-WebRequest https://github.com/Bsd-AI-Dev/BSD-InspectMySession/archive/refs/heads/main.tar.gz -OutFile bsd-ims-src.tar.gz
-tar -xzf bsd-ims-src.tar.gz
-cd BSD-InspectMySession-main
-node contract/check-transcript.mjs --latest 5
+node "$(npm root -g)\bsd-ims\contract\check-transcript.mjs" --latest 5
 ```
+
+From a clone: `node contract/check-transcript.mjs --latest 5`.
 
 (In a clone, `npm run check -- --latest 5` does the same.) Exit code 0 means OK, 1 warnings, 2 failures.
 
@@ -118,7 +119,7 @@ node contract/check-transcript.mjs --latest 5
 
 ### When Claude Code updates
 
-1. Run `node contract/check-transcript.mjs --latest 5`.
+1. Run the checker as shown above.
 2. If it reports WARN or FAIL, run it again with `--fix-prompt` and give the output to Claude Code in this repository.
 
 ## Limits
