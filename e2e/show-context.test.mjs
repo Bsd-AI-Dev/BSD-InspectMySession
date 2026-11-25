@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { access, copyFile, mkdir, mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { before, test } from 'node:test';
+import { after, before, test } from 'node:test';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -18,10 +18,15 @@ const fixtureProjectSlug = '-Users-example-projects-demo';
 const expectedHelp = `Show a Claude Code conversation and the context it read.
 
 Usage: bsd-ims [session-id-or-prefix] [--no-open] [--static]
+       bsd-ims --stop
+
+The live page has a menu of all sessions, grouped by project. One local server
+serves every session and stops after an hour without use.
 
 Flags:
   --no-open       Do not open the report.
   --static        Write a static report without a live server.
+  --stop          Stop the live server.
   -h, --help      Show this help.
   -v, --version   Show the version.
 
@@ -30,7 +35,7 @@ Environment:
   SHOW_CONTEXT_PROJECTS     Set the Claude projects root.
   CONTEXT_LENS_ROOT         Set the old fallback projects root.
   SHOW_CONTEXT_PORT         Set the live server port.
-  SHOW_CONTEXT_IDLE_MS      Set the live server idle timeout in milliseconds.
+  SHOW_CONTEXT_IDLE_MS      Set the live server idle timeout in milliseconds (default: 1 hour).
   SHOW_CONTEXT_CLAUDE_BIN   Set the Claude CLI binary.
 
 Example:
@@ -353,6 +358,13 @@ before(async () => {
     ['demo', demoId]
   ]) {
     await copyFile(path.join(fixtures, `${name}.jsonl`), path.join(fixtureProject, `${id}.jsonl`));
+  }
+});
+
+after(async () => {
+  // Stop the live servers the tests started (their state files sit next to the output pages).
+  for (const folder of [root, temp]) {
+    await exec(process.execPath, [cli, '--stop'], { env: { ...process.env, SHOW_CONTEXT_OUT: path.join(folder, 'x.html') } }).catch(() => {});
   }
 });
 

@@ -32,6 +32,7 @@ const splitFiles = {
 };
 
 const jsonLine = value => `${JSON.stringify(value)}\n`;
+const sessionPage = (url, id = sessionId) => `${url}s/${id}/`;
 
 function start(args = [], env = {}, selectedSessionId = sessionId) {
   const child = spawn(process.execPath, [cli, selectedSessionId, '--no-open', ...args], {
@@ -249,8 +250,9 @@ before(async () => {
   await chmod(fake, 0o755);
 });
 
-after(() => {
+after(async () => {
   for (const child of servers) child.kill('SIGTERM');
+  await runCli(['--stop'], { SHOW_CONTEXT_OUT: path.join(temp, 'x.html') });
 });
 
 test('multi-file shell reads split into addressable files without guessing changed output', () => {
@@ -305,7 +307,7 @@ test('live server exits from the CLI fast and protects every route', async () =>
   assert.equal((await fetch(`${parsed.origin}/wrong/`)).status, 404);
   assert.equal(
     (
-      await fetch(`${url}ask`, {
+      await fetch(`${sessionPage(url)}ask`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: 'http://wrong.test' },
         body: '{}'
@@ -324,7 +326,7 @@ test('fake Claude receives exact flags, cwd, selection, and refs', async () => {
   });
   const url = await waitForUrl(run);
   const origin = new URL(url).origin;
-  const response = await fetch(`${url}ask`, {
+  const response = await fetch(`${sessionPage(url)}ask`, {
     method: 'POST',
     headers: { origin, 'content-type': 'application/json' },
     body: JSON.stringify({ kind: 'text', question: 'Where?', text: 'Alpha source', messageIndex: 2 })
@@ -376,9 +378,9 @@ test('server rejects a second ask and exits when idle', async () => {
     headers: { origin, 'content-type': 'application/json' },
     body: JSON.stringify({ kind: 'text', question: 'Why?', text: 'Alpha', messageIndex: 2 })
   };
-  const first = fetch(`${url}ask`, request);
+  const first = fetch(`${sessionPage(url)}ask`, request);
   await new Promise(resolve => setTimeout(resolve, 30));
-  assert.equal((await fetch(`${url}ask`, request)).status, 409);
+  assert.equal((await fetch(`${sessionPage(url)}ask`, request)).status, 409);
   assert.equal((await first).status, 200);
   await new Promise(resolve => setTimeout(resolve, 250));
   await assert.rejects(fetch(url));
@@ -403,7 +405,7 @@ test('split Markdown tabs render and citation navigation opens source', async t 
   const split = splitModel.reads.find(read => read.toolUseIds.includes('conversation-split'));
   const run = start([], { SHOW_CONTEXT_CLAUDE_BIN: fake, SHOW_CONTEXT_IDLE_MS: '10000' });
   const url = await waitForUrl(run);
-  const cdp = await openCdp(`${url}?min=0`);
+  const cdp = await openCdp(`${sessionPage(url)}?min=0`);
   try {
     await waitForValue(cdp, 'document.readyState === "complete" && Boolean(document.getElementById("m-context"))');
     await cdp.evaluate(`document.querySelector('.seg[data-ref="${split.ref}"] .body').click()`);
@@ -494,7 +496,7 @@ test('ask screenshot artifact exists after Chrome E2E', async t => {
   if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
   const run = start([], { SHOW_CONTEXT_CLAUDE_BIN: fake, SHOW_CONTEXT_IDLE_MS: '10000' });
   const url = await waitForUrl(run);
-  const cdp = await openCdp(url);
+  const cdp = await openCdp(sessionPage(url));
   try {
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 1280,
@@ -563,7 +565,7 @@ test('ask screenshot artifact exists after Chrome E2E', async t => {
     assert.equal(state.split, true);
     assert.equal(state.selected, 'Alpha source Second source');
     assert.equal(state.cardText, 'Alpha source Second source');
-    const askRequest = cdp.requests.find(request => request.method === 'POST' && request.url === `${url}ask`);
+    const askRequest = cdp.requests.find(request => request.method === 'POST' && request.url === `${sessionPage(url)}ask`);
     assert.equal(JSON.parse(askRequest.postData).text, 'Alpha source Second source');
     assert.equal(state.pieces, 2);
     assert.equal(state.sources, 5);
@@ -739,7 +741,7 @@ test('demo answer resolves every citation and produces the public ask screenshot
     SHOW_CONTEXT_IDLE_MS: '10000'
   }, demoSessionId);
   const url = await waitForUrl(run);
-  const cdp = await openCdp(url);
+  const cdp = await openCdp(sessionPage(url, demoSessionId));
   try {
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 1280,
@@ -826,5 +828,109 @@ test('demo answer resolves every citation and produces the public ask screenshot
   } finally {
     cdp.socket.close();
     cdp.child.kill('SIGTERM');
+  }
+});
+
+const exited = run => run.child.exitCode != null
+  ? Promise.resolve(run.child.exitCode)
+  : new Promise(resolve => run.child.once('exit', resolve));
+
+function runCli(args, env) {
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, [cli, ...args], {
+      cwd: repo,
+      env: { ...process.env, SHOW_CONTEXT_PROJECTS: projects, ...env },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.once('exit', code => resolve({ code, stdout }));
+  });
+}
+
+async function gone(url) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try { await fetch(url); } catch { return true; }
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
+test('one live server is reused, lists sessions by project and stops on request', async () => {
+  const hubDir = path.join(temp, 'hub-reuse');
+  await mkdir(hubDir, { recursive: true });
+  const env = { SHOW_CONTEXT_CLAUDE_BIN: fake, SHOW_CONTEXT_IDLE_MS: '20000', SHOW_CONTEXT_OUT: path.join(hubDir, 'page.html') };
+  const firstRun = start([], env);
+  const url = await waitForUrl(firstRun);
+  await exited(firstRun);
+  assert.ok(firstRun.stdout().includes(`${url}?session=${sessionId}`), firstRun.stdout());
+  const secondRun = start([], env, demoSessionId);
+  assert.equal(await waitForUrl(secondRun), url);
+  await exited(secondRun);
+  assert.ok(secondRun.stdout().includes(`${url}?session=${demoSessionId}`));
+  const state = JSON.parse(await readFile(path.join(hubDir, 'server.json'), 'utf8'));
+  assert.equal(state.url, url);
+
+  assert.match(await (await fetch(url)).text(), /id="sessions"/);
+  const list = await (await fetch(`${url}api/sessions`)).json();
+  const group = list.projects.find(project => project.folder === 'fixture');
+  assert.ok(group, JSON.stringify(list));
+  assert.deepEqual(group.sessions.map(session => session.id).sort(), [demoSessionId, sessionId].sort());
+  assert.ok(group.sessions.every(session => session.title && session.file.endsWith('.jsonl')));
+  const page = await fetch(sessionPage(url));
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /show-context-data/);
+  assert.equal((await fetch(sessionPage(url, 'ffffffff-0000-4000-8000-000000000000'))).status, 404);
+  assert.equal((await fetch(`${url}s/..%2F..%2Fx/`)).status, 404);
+  assert.equal((await fetch(`${url}stop`, { method: 'POST', headers: { origin: 'http://wrong.test' } })).status, 403);
+
+  const otherRun = start([], { ...env, SHOW_CONTEXT_IDLE_MS: '20001' });
+  const other = await waitForUrl(otherRun);
+  await exited(otherRun);
+  assert.notEqual(other, url);
+  assert.ok(await gone(url), 'the server with other settings was replaced');
+
+  const stopped = await runCli(['--stop'], env);
+  assert.equal(stopped.code, 0);
+  assert.equal(stopped.stdout, 'bsd-ims: server stopped\n');
+  assert.ok(await gone(other));
+  await assert.rejects(readFile(path.join(hubDir, 'server.json')));
+  assert.equal((await runCli(['--stop'], env)).stdout, 'bsd-ims: no server running\n');
+});
+
+test('menu shows the selected session and switches sessions', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
+  const hubDir = path.join(temp, 'hub-menu');
+  await mkdir(hubDir, { recursive: true });
+  const env = { SHOW_CONTEXT_CLAUDE_BIN: fake, SHOW_CONTEXT_IDLE_MS: '20000', SHOW_CONTEXT_OUT: path.join(hubDir, 'page.html') };
+  const url = await waitForUrl(start([], env));
+  const cdp = await openCdp(`${url}?session=${sessionId}`);
+  try {
+    await waitForValue(cdp, 'document.querySelectorAll(".session").length === 2');
+    const state = await cdp.evaluate(`({
+      groups: [...document.querySelectorAll('.project')].map(node => node.dataset.folder),
+      selected: document.querySelector('.session.selected')?.dataset.id,
+      frame: document.querySelector('#frame').getAttribute('src')
+    })`);
+    assert.deepEqual(state.groups, ['fixture']);
+    assert.equal(state.selected, sessionId);
+    assert.equal(state.frame, `s/${sessionId}/`);
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument?.getElementById('show-context-data') ? true : false`);
+    await cdp.evaluate(`document.querySelector('.session[data-id="${demoSessionId}"] .open').click()`);
+    assert.equal(
+      await waitForValue(cdp, `document.querySelector('#frame').getAttribute('src') === 's/${demoSessionId}/' && location.search`),
+      `?session=${demoSessionId}`
+    );
+    await cdp.evaluate(`(() => {
+      const input = document.getElementById('filter');
+      input.value = 'no-session-matches-this';
+      input.dispatchEvent(new Event('input'));
+    })()`);
+    assert.equal(await cdp.evaluate('document.querySelectorAll(".session:not([hidden])").length'), 0);
+    assert.deepEqual(cdp.exceptions, []);
+  } finally {
+    cdp.socket.close();
+    cdp.child.kill('SIGTERM');
+    await runCli(['--stop'], env);
   }
 });
