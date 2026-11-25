@@ -13,7 +13,8 @@
   "homepage": "https://github.com/Bsd-AI-Dev/BSD-InspectMySession#readme",
   "bugs": "https://github.com/Bsd-AI-Dev/BSD-InspectMySession/issues",
   "scripts": {
-    "test": "node --test e2e/*.test.mjs"
+    "test": "node --test e2e/*.test.mjs",
+    "check": "node contract/check-transcript.mjs"
   },
   "bin": {
     "bsd-ims": "bin/bsd-ims.mjs"

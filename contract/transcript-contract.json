@@ -4,7 +4,7 @@
     "project": "show-context",
     "upstreamVersion": "0.2.1",
     "upstreamCommit": "0e3890e",
-    "how": "Hand-written from reading src/*.mjs and bin/show-context.mjs. Function names are stable anchors; line numbers drift, so use the 'search' strings with grep."
+    "how": "Hand-written from reading src/*.mjs and bin/show-context.mjs (now bin/bsd-ims.mjs). Function names are stable anchors; line numbers drift, so use the 'search' strings with grep."
   },
   "verifiedWith": [],
   "reviewed": {
@@ -15,15 +15,16 @@
   },
 
   "storage": {
-    "usedBy": ["bin/show-context.mjs:allSessions", "bin/show-context.mjs:selectSession"],
+    "usedBy": ["bin/bsd-ims.mjs:allSessions", "bin/bsd-ims.mjs:selectSession"],
     "layout": "<projectsRoot>/<project-folder>/<session-id>.jsonl (files directly inside the project folder)",
     "projectsRoot": "~/.claude/projects (override: SHOW_CONTEXT_PROJECTS)",
     "sessionEnvVar": "CLAUDE_CODE_SESSION_ID",
     "slugRules": {
       "upstream": "absolute cwd with every '/' and '.' replaced by '-'",
-      "proposed": "absolute cwd with every non-alphanumeric character replaced by '-'"
+      "proposed": "absolute cwd with every non-alphanumeric character replaced by '-'",
+      "inUse": "proposed (bsd-ims). A folder that matches only 'proposed' confirms the rule; one that matches neither means it is wrong."
     },
-    "search": ["selectSession", "replaceAll('/'", "CLAUDE_CODE_SESSION_ID", ".claude/projects"],
+    "search": ["selectSession", "replace(/[^a-zA-Z0-9]/g", "CLAUDE_CODE_SESSION_ID", ".claude/projects"],
     "effect": "Wrong layout or slug rule: no session found for the current folder, or the wrong one is guessed."
   },
 
@@ -97,14 +98,16 @@
       "fields": {
         "shapeHash": { "type": "string", "severity": "WARN", "search": ["shapeHash"], "effect": "Cannot pick the right shape for the main request." },
         "shape.system": { "type": "array", "severity": "WARN", "search": ["shape?.system", "promptSnapshot"], "effect": "System prompt part is empty." },
-        "shape.tools": { "type": "array", "severity": "WARN", "search": ["shape?.tools"], "effect": "Tools part is empty (no tool list, no size)." }
+        "shape.tools": { "type": "array", "severity": "WARN", "search": ["shape?.tools"], "effect": "Tools part is empty (no tool list, no size, no per-tool rows)." }
       },
       "itemChecks": {
         "shape.tools": {
           "name|definition.name": { "severity": "WARN", "search": ["tool.name || tool.definition?.name"], "effect": "Tool names are missing from the Tools part." },
           "description|definition.description": { "severity": "WARN", "search": ["tool.description || tool.definition?.description"], "effect": "Tool descriptions are missing from the Tools part." }
         }
-      }
+      },
+      "notes": "bsd-ims adds one Tools item per entry in shape.tools ({ name, text: '<name>: <first line of description>' }). Each item's size is its share of the Tools total, proportional to JSON.stringify(tool).length (exactShares in buildStartLoad), so it is an estimate. If tool entries gain or lose large fields, the per-tool split shifts."
+
     }
   },
 
@@ -114,7 +117,7 @@
       "text": { "fields": { "text": { "type": "string", "severity": "WARN", "search": ["block?.type === 'text'"], "effect": "Message text is lost." } } },
       "tool_use": {
         "fields": {
-          "id": { "type": "string", "severity": "FAIL", "search": ["block.type !== 'tool_use'", "toolUseSeen"], "effect": "Tool calls cannot be matched to their results: no reads." },
+          "id": { "type": "string", "severity": "FAIL", "search": ["block?.type !== 'tool_use'", "toolUseSeen"], "effect": "Tool calls cannot be matched to their results: no reads." },
           "name": { "type": "string", "severity": "FAIL", "search": ["block.name"], "effect": "Tools cannot be classified: no reads." },
           "input": { "type": "object", "severity": "WARN", "search": ["block.input"], "effect": "Paths, commands and queries are lost." }
         }
