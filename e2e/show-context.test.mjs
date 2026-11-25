@@ -631,6 +631,24 @@ test('a main request labelled "sdk" (VS Code) is used, not a side request', asyn
   assert.deepEqual(sdkModel.startLoad, model.startLoad);
 });
 
+test('a synthetic API error message before the first request is ignored', async () => {
+  const { model } = await mainPage();
+  const records = (await readFile(path.join(fixtures, 'main.jsonl'), 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
+  const apiError = {
+    type: 'assistant', isApiErrorMessage: true, isSidechain: false,
+    message: { id: 'api-error-1', role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: 'API Error: overloaded' }],
+      usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }
+  };
+  const id = 'acacacac-1111-4111-8111-111111111111';
+  await writeFile(path.join(fixtureProject, `${id}.jsonl`), [apiError, ...records].map(jsonLine).join(''));
+  const result = await run(root, [id]);
+  assert.equal(result.code, 0, result.stdout);
+  const errorModel = dataFrom(await readFile(result.out, 'utf8'));
+  assert.equal(errorModel.startLoadTokens, model.startLoadTokens);
+  assert.deepEqual(errorModel.startLoad, model.startLoad);
+  assert.deepEqual(errorModel.reads.map(read => [read.name, read.size]), model.reads.map(read => [read.name, read.size]));
+});
+
 test('image tool results become measured File reads', async () => {
   const id = '44444444-1111-4111-8111-111111111111';
   await writeFile(path.join(project, `${id}.jsonl`), imageFixture(id));

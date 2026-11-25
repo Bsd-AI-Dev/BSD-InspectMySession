@@ -41,7 +41,8 @@
         "message.usage.cache_read_input_tokens": { "type": "number", "severity": "WARN", "optional": true, "search": ["cache_read_input_tokens"], "effect": "Token totals are too low when caching is used." },
         "message.usage.cache_creation_input_tokens": { "type": "number", "severity": "WARN", "optional": true, "search": ["cache_creation_input_tokens"], "effect": "Token totals are too low when caching is used." },
         "message.id|uuid": { "type": "string", "severity": "WARN", "search": ["usageSeen", "message?.id || record.uuid"], "effect": "Repeated usage from streamed duplicates may be double counted." },
-        "cwd": { "type": "string", "severity": "WARN", "optional": true, "search": ["cwd: record.cwd"], "effect": "Relative paths in shell commands cannot be resolved for file splitting." }
+        "cwd": { "type": "string", "severity": "WARN", "optional": true, "search": ["cwd: record.cwd"], "effect": "Relative paths in shell commands cannot be resolved for file splitting." },
+        "isApiErrorMessage": { "type": "boolean", "severity": "INFO", "optional": true, "search": ["isSyntheticAssistant"], "effect": "Messages Claude Code writes itself (API errors; model '<synthetic>', zero usage) are skipped when measuring. If this flag and the '<synthetic>' model name both disappear, such a message before the first request makes the start-load 0 tokens again." }
       }
     },
     "user": {

@@ -22,6 +22,11 @@ export const OTHER_ATTACHMENT_LABELS = new Map([
   ['total_tokens_reminder', 'token limit']
 ]);
 
+// Claude Code writes some assistant messages itself (API errors and similar): model <synthetic>, zero usage.
+export function isSyntheticAssistant(record) {
+  return record.isApiErrorMessage === true || record.message?.model === '<synthetic>';
+}
+
 const PART_ORDER = ['system', 'tools', 'instructions', 'skills', 'mcp', 'deferred', 'hooks', 'other', 'prompt', 'unrecorded'];
 
 function textOf(value) {
@@ -119,7 +124,8 @@ function addPart(parts, key, name, detail, text, extra = {}) {
 }
 
 export function buildStartLoad(records, total, options = {}) {
-  const firstAssistant = records.findIndex(record => record.type === 'assistant' && record.isSidechain !== true);
+  const firstAssistant = records.findIndex(record => record.type === 'assistant' && record.isSidechain !== true
+    && !isSyntheticAssistant(record));
   const initial = firstAssistant < 0 ? records : records.slice(0, firstAssistant);
   const home = options.home || process.env.HOME || '';
   const environment = initial.find(record => record.type === 'attachment' && record.attachment?.type === 'environment');

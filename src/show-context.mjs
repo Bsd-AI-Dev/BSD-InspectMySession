@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { classifyShellCommand } from './shell-kind.mjs';
-import { buildStartLoad } from './start-load.mjs';
+import { buildStartLoad, isSyntheticAssistant } from './start-load.mjs';
 
 export const EXCLUDED_TOOLS = new Set([
   'Write', 'Edit', 'NotebookEdit', 'ToolSearch', 'AskUserQuestion', 'TaskOutput',
@@ -469,7 +469,7 @@ export function parseTranscript(source, options = {}) {
     if (record.isSidechain === true) continue;
     if (record.type === 'assistant') {
       const messageId = record.message?.id || record.uuid;
-      if (record.message?.usage && messageId && !usageSeen.has(messageId)) {
+      if (record.message?.usage && messageId && !usageSeen.has(messageId) && !isSyntheticAssistant(record)) {
         usageSeen.add(messageId);
         const currentTotal = totalUsage(record.message.usage);
         if (previousTotal == null) startLoadTokens = currentTotal;
