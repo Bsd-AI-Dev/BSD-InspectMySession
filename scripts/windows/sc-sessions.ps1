@@ -36,6 +36,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$CliName = 'bsd-ims'
 $script:StartDir  = (Get-Location).ProviderPath
 $script:ScopeNow  = $Scope
 $script:SrcFilter = 'All'
@@ -61,8 +62,8 @@ function Resolve-ClaudeBin {
 
 function Resolve-ShowContext {
   # Prefer the .cmd shim: it works regardless of the PowerShell execution policy.
-  $c = Get-Command show-context.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
-  if (-not $c) { $c = Get-Command show-context -ErrorAction SilentlyContinue | Select-Object -First 1 }
+  $c = Get-Command "$CliName.cmd" -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $c) { $c = Get-Command $CliName -ErrorAction SilentlyContinue | Select-Object -First 1 }
   if ($c) { return $c.Source }
   return $null
 }
@@ -77,7 +78,7 @@ function Test-Preflight {
   } else {
     $major = [int]($nodeV.ToString().TrimStart('v').Split('.')[0])
     if ($major -lt 22) {
-      Write-Host "[!!] Node $nodeV is too old, show-context needs v22 or newer." -ForegroundColor Red; $ok = $false
+      Write-Host "[!!] Node $nodeV is too old, $CliName needs v22 or newer." -ForegroundColor Red; $ok = $false
     } else {
       Write-Host "[OK] Node $nodeV" -ForegroundColor Green
     }
@@ -85,9 +86,9 @@ function Test-Preflight {
 
   $sc = Resolve-ShowContext
   if (-not $sc) {
-    Write-Host '[!!] show-context not found. Install it with: npm install -g show-context' -ForegroundColor Red; $ok = $false
+    Write-Host "[!!] $CliName not found. Install it with: npm install -g github:Bsd-AI-Dev/BSD-InspectMySession" -ForegroundColor Red; $ok = $false
   } else {
-    Write-Host "[OK] show-context: $sc" -ForegroundColor Green
+    Write-Host "[OK] ${CliName}: $sc" -ForegroundColor Green
   }
 
   $bin = Resolve-ClaudeBin
@@ -243,7 +244,7 @@ function Get-View($all, [string]$filter) {
 function Invoke-ShowContext($s, [bool]$Static) {
   $exe = Resolve-ShowContext
   if (-not $exe) {
-    Write-Host 'show-context is not installed. Run: npm install -g show-context' -ForegroundColor Red
+    Write-Host "$CliName is not installed. Run: npm install -g github:Bsd-AI-Dev/BSD-InspectMySession" -ForegroundColor Red
     return $null
   }
 
@@ -352,7 +353,7 @@ function Show-Servers {
     Clear-Host
     Write-Host 'Running show-context servers' -ForegroundColor Cyan
     $procs = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-      Where-Object { $_.CommandLine -match 'show-context' -and $_.CommandLine -match '--serve' })
+      Where-Object { $_.CommandLine -match ('[\\/]' + [regex]::Escape("$CliName.mjs")) -and $_.CommandLine -match '--serve' })
     if ($procs.Count -eq 0) {
       Write-Host '  None running.'
       Wait-AnyKey; return
