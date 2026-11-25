@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "describes": {
+    "project": "show-context",
+    "upstreamVersion": "0.2.1",
+    "upstreamCommit": "0e3890e",
+    "how": "Hand-written from reading src/*.mjs and bin/show-context.mjs. Function names are stable anchors; line numbers drift, so use the 'search' strings with grep."
+  },
+  "verifiedWith": [],
+  "reviewed": {
+    "recordTypes": [],
+    "attachmentTypes": [],
+    "blockTypes": [],
+    "toolNames": []
+  },
+
+  "storage": {
+    "usedBy": ["bin/show-context.mjs:allSessions", "bin/show-context.mjs:selectSession"],
+    "layout": "<projectsRoot>/<project-folder>/<session-id>.jsonl (files directly inside the project folder)",
+    "projectsRoot": "~/.claude/projects (override: SHOW_CONTEXT_PROJECTS)",
+    "sessionEnvVar": "CLAUDE_CODE_SESSION_ID",
+    "slugRules": {
+      "upstream": "absolute cwd with every '/' and '.' replaced by '-'",
+      "proposed": "absolute cwd with every non-alphanumeric character replaced by '-'"
+    },
+    "search": ["selectSession", "replaceAll('/'", "CLAUDE_CODE_SESSION_ID", ".claude/projects"],
+    "effect": "Wrong layout or slug rule: no session found for the current folder, or the wrong one is guessed."
+  },
+
+  "records": {
+    "assistant": {
+      "required": true,
+      "missingSeverity": "FAIL",
+      "usedBy": ["src/show-context.mjs:parseTranscript", "src/show-context.mjs:buildConversation"],
+      "mainThreadOnly": true,
+      "fields": {
+        "message.content": { "type": "string|array", "severity": "FAIL", "search": ["blocksOf"], "effect": "No assistant text or tool calls can be read." },
+        "message.usage": { "type": "object", "severity": "FAIL", "search": ["totalUsage", "message?.usage", "usageSeen"], "effect": "No token counts: every read size becomes 0 and the start-load total is 0." },
+        "message.usage.input_tokens": { "type": "number", "severity": "WARN", "search": ["input_tokens"], "effect": "Token totals are too low." },
+        "message.usage.cache_read_input_tokens": { "type": "number", "severity": "WARN", "optional": true, "search": ["cache_read_input_tokens"], "effect": "Token totals are too low when caching is used." },
+        "message.usage.cache_creation_input_tokens": { "type": "number", "severity": "WARN", "optional": true, "search": ["cache_creation_input_tokens"], "effect": "Token totals are too low when caching is used." },
+        "message.id|uuid": { "type": "string", "severity": "WARN", "search": ["usageSeen", "message?.id || record.uuid"], "effect": "Repeated usage from streamed duplicates may be double counted." },
+        "cwd": { "type": "string", "severity": "WARN", "optional": true, "search": ["cwd: record.cwd"], "effect": "Relative paths in shell commands cannot be resolved for file splitting." }
+      }
+    },
+    "user": {
+      "required": true,
+      "missingSeverity": "FAIL",
+      "usedBy": ["src/show-context.mjs:parseTranscript", "src/show-context.mjs:buildConversation"],
+      "mainThreadOnly": true,
+      "fields": {
+        "message.content": { "type": "string|array", "severity": "FAIL", "search": ["blocksOf"], "effect": "No user prompts or tool results can be read." }
+      }
+    },
+    "attachment": {
+      "required": false,
+      "usedBy": ["src/start-load.mjs:buildStartLoad"],
+      "fields": {
+        "attachment.type": { "type": "string", "severity": "FAIL", "search": ["attachment?.type", "START_ATTACHMENT_TYPES"], "effect": "Start-load parts (skills, MCP, instructions, other) cannot be identified." }
+      }
+    },
+    "compact_boundary": {
+      "required": false,
+      "usedBy": ["src/show-context.mjs:buildConversation"],
+      "fields": {},
+      "search": ["compact_boundary"],
+      "effect": "The compaction marker in the conversation view disappears."
+    },
+    "api-request": {
+      "required": true,
+      "missingSeverity": "WARN",
+      "usedBy": ["src/start-load.mjs:mainRequest", "src/start-load.mjs:requestMessages"],
+      "search": ["api-request", "mainRequest"],
+      "effect": "System prompt and tool definitions cannot be found; the page shows 'Not recorded in this session file'.",
+      "fields": {
+        "querySource": { "type": "string", "severity": "WARN", "optional": true, "expectOneOf": ["repl_main_thread"], "search": ["repl_main_thread", "querySource"], "effect": "The main-thread request cannot be told apart from side requests." },
+        "shapeHash": { "type": "string", "severity": "WARN", "search": ["shapeHash"], "effect": "Cannot link a request to its tool/system shape." },
+        "tail": { "type": "array", "severity": "WARN", "search": ["request.tail", "api-request-blob"], "effect": "The first user message of the request cannot be reconstructed." }
+      }
+    },
+    "api-request-blob": {
+      "required": false,
+      "usedBy": ["src/start-load.mjs:requestMessages"],
+      "search": ["api-request-blob", "record.hash"],
+      "effect": "The first user message and instruction reminders cannot be rebuilt.",
+      "fields": {
+        "hash": { "type": "string", "severity": "WARN", "search": ["record.hash"], "effect": "Blobs cannot be matched to the request tail." },
+        "message": { "type": "object", "severity": "WARN", "search": ["record.message"], "effect": "Blob contents are lost." }
+      }
+    },
+    "api-request-shape": {
+      "required": true,
+      "missingSeverity": "WARN",
+      "usedBy": ["src/start-load.mjs:buildStartLoad"],
+      "search": ["api-request-shape", "shape?.tools", "shape?.system"],
+      "effect": "System prompt and Tools sizes disappear from the start-load breakdown.",
+      "fields": {
+        "shapeHash": { "type": "string", "severity": "WARN", "search": ["shapeHash"], "effect": "Cannot pick the right shape for the main request." },
+        "shape.system": { "type": "array", "severity": "WARN", "search": ["shape?.system", "promptSnapshot"], "effect": "System prompt part is empty." },
+        "shape.tools": { "type": "array", "severity": "WARN", "search": ["shape?.tools"], "effect": "Tools part is empty (no tool list, no size)." }
+      },
+      "itemChecks": {
+        "shape.tools": {
+          "name|definition.name": { "severity": "WARN", "search": ["tool.name || tool.definition?.name"], "effect": "Tool names are missing from the Tools part." },
+          "description|definition.description": { "severity": "WARN", "search": ["tool.description || tool.definition?.description"], "effect": "Tool descriptions are missing from the Tools part." }
+        }
+      }
+    }
+  },
+
+  "contentBlocks": {
+    "usedBy": ["src/show-context.mjs:blocksOf", "src/show-context.mjs:parseTranscript"],
+    "known": {
+      "text": { "fields": { "text": { "type": "string", "severity": "WARN", "search": ["block?.type === 'text'"], "effect": "Message text is lost." } } },
+      "tool_use": {
+        "fields": {
+          "id": { "type": "string", "severity": "FAIL", "search": ["block.type !== 'tool_use'", "toolUseSeen"], "effect": "Tool calls cannot be matched to their results: no reads." },
+          "name": { "type": "string", "severity": "FAIL", "search": ["block.name"], "effect": "Tools cannot be classified: no reads." },
+          "input": { "type": "object", "severity": "WARN", "search": ["block.input"], "effect": "Paths, commands and queries are lost." }
+        }
+      },
+      "tool_result": {
+        "fields": {
+          "tool_use_id": { "type": "string", "severity": "FAIL", "search": ["block.tool_use_id"], "effect": "Results cannot be matched to calls: no reads." },
+          "content": { "type": "string|array", "severity": "WARN", "search": ["block.content", "textOf(block.content)"], "effect": "Read sizes and text are lost." },
+          "is_error": { "type": "boolean", "severity": "INFO", "optional": true, "search": ["is_error"], "effect": "Failed reads would be counted as reads." }
+        }
+      },
+      "image": { "fields": {} }
+    }
+  },
+
+  "attachments": {
+    "usedBy": ["src/start-load.mjs:buildStartLoad"],
+    "effectIfNew": "A new attachment type is not categorized by buildStartLoad. Its tokens are still in the real total, so they get spread over the known parts by character count and the breakdown quietly becomes less accurate.",
+    "known": {
+      "skill_listing": { "fields": { "content|rendered": { "type": "string|array|object", "severity": "WARN" }, "names": { "type": "array", "severity": "INFO", "optional": true }, "skillCount": { "type": "number", "severity": "INFO", "optional": true } }, "search": ["skill_listing", "skillCount"] },
+      "mcp_instructions_delta": { "fields": { "addedBlocks|rendered": { "type": "array|string|object", "severity": "WARN" }, "addedNames": { "type": "array", "severity": "INFO", "optional": true } }, "search": ["mcp_instructions_delta", "addedBlocks"] },
+      "deferred_tools_delta": { "fields": { "addedNames|names": { "type": "array", "severity": "WARN", "optional": true }, "surfacedDefinitions": { "type": "array", "severity": "INFO", "optional": true } }, "search": ["deferred_tools_delta", "surfacedDefinitions"] },
+      "deferred_tools_record": { "fields": { "addedNames|names": { "type": "array", "severity": "WARN", "optional": true } }, "search": ["deferred_tools_record"] },
+      "hook_additional_context": { "fields": { "content": { "type": "string|array", "severity": "WARN" } }, "search": ["hook_additional_context"] },
+      "environment": { "fields": { "snapshot.workingDirectory": { "type": "string", "severity": "INFO", "optional": true }, "content|rendered": { "type": "string|array|object", "severity": "WARN", "optional": true } }, "search": ["'environment'", "workingDirectory"] },
+      "instructions": { "fields": { "files": { "type": "array", "severity": "WARN" } }, "search": ["'instructions'", "instructionAttachment", "INSTRUCTION_HEADER"] },
+      "prompt_snapshot": { "fields": { "systemPrompt": { "type": "array|string", "severity": "INFO", "optional": true } }, "search": ["prompt_snapshot", "promptSnapshot"] },
+      "model": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "agent_listing_delta": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "auto_mode": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "session_context": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "date": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "remote_session_change": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] },
+      "total_tokens_reminder": { "fields": {}, "search": ["OTHER_ATTACHMENT_LABELS"] }
+    }
+  },
+
+  "tools": {
+    "usedBy": ["src/show-context.mjs:readInfo", "src/show-context.mjs:addRead"],
+    "counted": {
+      "Read": { "inputKeys": ["file_path|path"], "search": ["tool.name === 'Read'"] },
+      "Bash": { "inputKeys": ["command"], "search": ["tool.name === 'Bash'", "classifyShellCommand"] },
+      "Skill": { "inputKeys": ["skill"], "search": ["tool.name === 'Skill'"] },
+      "WebFetch": { "inputKeys": ["url"], "search": ["'WebFetch'"] },
+      "WebSearch": { "inputKeys": ["query"], "search": ["'WebSearch'"] }
+    },
+    "countedPrefix": "mcp__",
+    "mcpWriteVerbs": "MCP_WRITE_VERB in src/show-context.mjs (tools whose method starts with write/edit/create/... are not counted as reads)",
+    "excluded": ["Write", "Edit", "NotebookEdit", "ToolSearch", "AskUserQuestion", "TaskOutput", "TaskStop", "Agent", "Task", "ScheduleWakeup", "Artifact"],
+    "knownGaps": {
+      "Grep": { "note": "Not counted as a read by upstream (readInfo returns null). Results do enter the context window.", "search": ["readInfo"] },
+      "Glob": { "note": "Not counted as a read by upstream (readInfo returns null). Results do enter the context window.", "search": ["readInfo"] }
+    },
+    "effectIfNew": "A new tool that returns large results is invisible in the reads list until readInfo/EXCLUDED_TOOLS handle it."
+  },
+
+  "textMarkers": {
+    "usedBy": ["src/show-context.mjs"],
+    "readLineNumbers": { "regex": "^\\s*\\d+(?:\\t|→)", "search": ["readLines", "hasToolNumbers"], "effect": "'Where did this come from' line numbers no longer match the file." },
+    "skillBody": { "regex": "Base directory for this skill:", "search": ["Base directory for this skill:", "waitingSkills"], "effect": "Skill reads are not detected (no Skill rows)." },
+    "persistedOutput": { "regex": "(Output too large|<persisted-output>)", "pathRegex": "Full output saved to:\\s*([^\\s<]+)", "search": ["savedOutputPath", "Full output saved to"], "effect": "Large shell outputs are not merged with the file they were saved to." },
+    "systemReminder": { "regex": "<system-reminder>", "search": ["SYSTEM_REMINDER"], "effect": "Injected reminders show up as user messages in the conversation view." },
+    "commandWrappers": { "regex": "<command-name>|<local-command-", "search": ["NON_PROMPT_BLOCK"], "effect": "Slash-command echoes show up as user messages." },
+    "instructionHeader": { "regex": "Contents of .+ \\(.*\\):", "search": ["INSTRUCTION_HEADER"], "effect": "CLAUDE.md sections cannot be split per file when the 'instructions' attachment is absent." }
+  },
+
+  "shellSemantics": {
+    "usedBy": ["src/shell-kind.mjs:classifyShellCommand"],
+    "note": "Reads through Bash are recognised by program name (cat, head, tail, rg, grep, ...). The lists live in src/shell-kind.mjs (FILE_PROGRAMS, EXPLORE_PROGRAMS, EXPLORE_GIT_SUBCOMMANDS, PIPE_FILTERS, NEUTRAL_PROGRAMS). The parser assumes Unix-style shell commands; PowerShell cmdlets are not recognised.",
+    "search": ["FILE_PROGRAMS", "EXPLORE_PROGRAMS", "classifyShellCommand"]
+  },
+
+  "cli": {
+    "usedBy": ["src/agents/claude.mjs:ask"],
+    "binaryEnvVar": "SHOW_CONTEXT_CLAUDE_BIN",
+    "flags": [
+      { "flag": "--resume", "severity": "WARN" },
+      { "flag": "--print", "severity": "WARN" },
+      { "flag": "--output-format", "severity": "WARN" },
+      { "flag": "--fork-session", "severity": "INFO" },
+      { "flag": "--no-session-persistence", "severity": "INFO" },
+      { "flag": "--tools", "severity": "INFO" },
+      { "flag": "--max-turns", "severity": "INFO" }
+    ],
+    "jsonResultFields": ["result", "total_cost_usd", "duration_ms"],
+    "note": "Flags are only checked against 'claude --help'. Some may be hidden from help, so INFO means 'verify by hand'. The JSON result fields can only be confirmed by running a real ask.",
+    "search": ["--fork-session", "--no-session-persistence", "--max-turns", "total_cost_usd"],
+    "effect": "The 'Where did this come from' button fails or returns nothing."
+  }
+}
