@@ -74,7 +74,7 @@
       "search": ["api-request", "mainRequest"],
       "effect": "System prompt and tool definitions cannot be found; the page shows 'Not recorded in this session file'.",
       "fields": {
-        "querySource": { "type": "string", "severity": "WARN", "optional": true, "expectOneOf": ["repl_main_thread"], "search": ["repl_main_thread", "querySource"], "effect": "The main-thread request cannot be told apart from side requests." },
+        "querySource": { "type": "string", "severity": "WARN", "optional": true, "expectOneOf": ["repl_main_thread", "sdk"], "search": ["repl_main_thread", "MAIN_QUERY_SOURCES"], "effect": "The main-thread request cannot be told apart from side requests." },
         "shapeHash": { "type": "string", "severity": "WARN", "search": ["shapeHash"], "effect": "Cannot link a request to its tool/system shape." },
         "tail": { "type": "array", "severity": "WARN", "search": ["request.tail", "api-request-blob"], "effect": "The first user message of the request cannot be reconstructed." }
       }

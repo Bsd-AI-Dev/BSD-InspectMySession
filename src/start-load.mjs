@@ -57,9 +57,12 @@ function displayPath(filePath, home, cwd) {
   return normalized;
 }
 
+// The terminal labels the main request repl_main_thread; the VS Code extension labels it sdk.
+const MAIN_QUERY_SOURCES = new Set(['repl_main_thread', 'sdk']);
+
 function mainRequest(records) {
   return records.find(record => record.type === 'api-request'
-    && (!record.querySource || record.querySource === 'repl_main_thread'));
+    && (!record.querySource || MAIN_QUERY_SOURCES.has(record.querySource)));
 }
 
 function requestMessages(records, request) {

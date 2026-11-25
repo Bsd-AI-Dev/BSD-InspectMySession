@@ -611,6 +611,26 @@ test('start load has named parts with exact measured sizes', async () => {
   );
 });
 
+test('a main request labelled "sdk" (VS Code) is used, not a side request', async () => {
+  const { model } = await mainPage();
+  const records = (await readFile(path.join(fixtures, 'main.jsonl'), 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
+  const shape = records.find(record => record.type === 'api-request-shape');
+  const side = [
+    { type: 'api-request', querySource: 'side_question', shapeHash: 'side-shape', tail: [] },
+    { type: 'api-request-shape', shapeHash: 'side-shape',
+      shape: { system: [{ type: 'text', text: 'Side request.' }], tools: [{ name: 'SideTool', description: 'Not the main tools.' }] } }
+  ];
+  const changed = [...side, ...records.map(record =>
+    record.type === 'api-request' ? { ...record, querySource: 'sdk' } : record)];
+  assert.ok(shape.shape.tools.length >= 2);
+  const id = 'abababab-1111-4111-8111-111111111111';
+  await writeFile(path.join(fixtureProject, `${id}.jsonl`), changed.map(jsonLine).join(''));
+  const result = await run(root, [id]);
+  assert.equal(result.code, 0, result.stdout);
+  const sdkModel = dataFrom(await readFile(result.out, 'utf8'));
+  assert.deepEqual(sdkModel.startLoad, model.startLoad);
+});
+
 test('image tool results become measured File reads', async () => {
   const id = '44444444-1111-4111-8111-111111111111';
   await writeFile(path.join(project, `${id}.jsonl`), imageFixture(id));
