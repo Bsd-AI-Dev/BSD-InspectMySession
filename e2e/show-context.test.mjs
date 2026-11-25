@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const repo = path.resolve(import.meta.dirname, '..');
-const cli = path.join(repo, 'bin/show-context.mjs');
+const cli = path.join(repo, 'bin/bsd-ims.mjs');
 const fixtures = path.join(import.meta.dirname, 'fixtures');
 const mainId = 'aaaaaaaa-1111-4111-8111-111111111111';
 const compactId = 'bbbbbbbb-2222-4222-8222-222222222222';
@@ -17,7 +17,7 @@ const demoId = 'dddddddd-4444-4444-8444-444444444444';
 const fixtureProjectSlug = '-Users-example-projects-demo';
 const expectedHelp = `Show a Claude Code conversation and the context it read.
 
-Usage: show-context [session-id-or-prefix] [--no-open] [--static]
+Usage: bsd-ims [session-id-or-prefix] [--no-open] [--static]
 
 Flags:
   --no-open       Do not open the report.
@@ -34,7 +34,7 @@ Environment:
   SHOW_CONTEXT_CLAUDE_BIN   Set the Claude CLI binary.
 
 Example:
-  show-context abc123 --no-open
+  bsd-ims abc123 --no-open
 `;
 
 let chrome = '';
@@ -372,7 +372,7 @@ test('help, version, and unknown flags are complete CLI E2E paths', async () => 
   }
   const unknown = await runCli(['--unknown']);
   assert.equal(unknown.code, 1);
-  assert.equal(unknown.stdout, 'show-context: unknown flag: --unknown. Use --help for help.\n');
+  assert.equal(unknown.stdout, 'bsd-ims: unknown flag: --unknown. Use --help for help.\n');
   assert.equal(unknown.stderr, '');
 });
 
@@ -389,7 +389,7 @@ test('the report opens with the platform opener', async t => {
   const env = { ...process.env, SHOW_CONTEXT_PROJECTS: root, SHOW_CONTEXT_OUT: out, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` };
   delete env.CONTEXT_LENS_ROOT;
   const result = await exec(process.execPath, [cli, id, '--static'], { cwd: repo, env });
-  assert.match(result.stdout, /^show-context: 1 reads/);
+  assert.match(result.stdout, /^bsd-ims: 1 reads/);
   let target = '';
   for (let tries = 0; tries < 50 && !target; tries++) {
     try { target = await readFile(opened, 'utf8'); } catch { await new Promise(resolve => setTimeout(resolve, 50)); }
@@ -404,7 +404,7 @@ test('session selection, errors, and deterministic output', async () => {
   await writeFile(path.join(project, `${second}.jsonl`), selectionFixture(second, 'beta.txt'));
   const byId = await run(root, [first]);
   assert.equal(byId.code, 0);
-  assert.match(byId.stdout, /^show-context: 1 reads, 140 tokens · 11111111 · .+\n$/);
+  assert.match(byId.stdout, /^bsd-ims: 1 reads, 140 tokens · 11111111 · .+\n$/);
   assert.equal(byId.stderr, '');
   assert.equal((await run(root, ['11111111-1111'])).code, 0);
   const ambiguous = await run(root, ['11111111']);
@@ -434,7 +434,7 @@ test('session selection, errors, and deterministic output', async () => {
     await writeFile(path.join(project, `${id}.jsonl`), body);
     const failed = await run(root, [id]);
     assert.equal(failed.code, 1);
-    assert.match(failed.stdout, /^show-context: .+\n$/);
+    assert.match(failed.stdout, /^bsd-ims: .+\n$/);
     assert.equal(failed.stdout.trim().split('\n').length, 1);
     assert.equal(failed.stderr, '');
   }

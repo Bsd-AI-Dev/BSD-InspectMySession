@@ -1,7 +1,7 @@
 {
-  "name": "show-context",
-  "version": "0.2.1",
-  "description": "Show a Claude Code conversation and the context it read.",
+  "name": "bsd-ims",
+  "version": "0.1.0",
+  "description": "Windows-friendly derivative of show-context: show a Claude Code conversation and the context it read.",
   "type": "module",
   "keywords": [
     "claude-code",
@@ -9,18 +9,19 @@
     "tokens"
   ],
   "license": "MIT",
-  "repository": "git+https://github.com/bernatsampera/show-context.git",
-  "homepage": "https://github.com/bernatsampera/show-context#readme",
-  "bugs": "https://github.com/bernatsampera/show-context/issues",
+  "repository": "git+https://github.com/Bsd-AI-Dev/BSD-InspectMySession.git",
+  "homepage": "https://github.com/Bsd-AI-Dev/BSD-InspectMySession#readme",
+  "bugs": "https://github.com/Bsd-AI-Dev/BSD-InspectMySession/issues",
   "scripts": {
     "test": "node --test e2e/*.test.mjs"
   },
   "bin": {
-    "show-context": "bin/show-context.mjs"
+    "bsd-ims": "bin/bsd-ims.mjs"
   },
   "files": [
     "bin",
     "src",
+    "scripts",
     "README.md",
     "LICENSE"
   ],

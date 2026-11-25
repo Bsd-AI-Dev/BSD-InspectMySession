@@ -786,7 +786,7 @@ function waitingCard(question, label) {
 async function runAsk(body, label, question) {
   if (!DATA.live) {
     $('answer').innerHTML = `${cardHeading(question)}
-      <p>Asking needs the live page. Run show-context without --static.</p>`;
+      <p>Asking needs the live page. Run bsd-ims without --static.</p>`;
     $('answer').querySelector('.a-close').onclick = closeAnswer;
     return;
   }

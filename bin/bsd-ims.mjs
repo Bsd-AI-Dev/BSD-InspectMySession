@@ -11,7 +11,7 @@ import { startServer } from '../src/server.mjs';
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const help = `Show a Claude Code conversation and the context it read.
 
-Usage: show-context [session-id-or-prefix] [--no-open] [--static]
+Usage: bsd-ims [session-id-or-prefix] [--no-open] [--static]
 
 Flags:
   --no-open       Do not open the report.
@@ -28,7 +28,7 @@ Environment:
   SHOW_CONTEXT_CLAUDE_BIN   Set the Claude CLI binary.
 
 Example:
-  show-context abc123 --no-open
+  bsd-ims abc123 --no-open
 `;
 
 function openTarget(target) {
@@ -125,7 +125,7 @@ async function main() {
   const staticOnly = args.includes('--static');
   const positional = args.filter(argument => !flags.has(argument));
   if (positional.length > 1) {
-    throw new Error('usage: show-context [session-id-or-prefix] [--no-open] [--static]');
+    throw new Error('usage: bsd-ims [session-id-or-prefix] [--no-open] [--static]');
   }
   const { session, guessed } = await selectSession(projectsRoot(), positional[0]);
   let source;
@@ -164,7 +164,7 @@ async function main() {
   if (!noOpen) await openTarget(target);
   const note = guessed ? ' · guessed: newest session in this folder' : '';
   console.log(
-    `show-context: ${model.reads.length} reads, ${model.totalReadTokens} tokens` +
+    `bsd-ims: ${model.reads.length} reads, ${model.totalReadTokens} tokens` +
     ` · ${session.id.slice(0, 8)}${note} · ${target} · ${output}`
   );
 }
@@ -172,6 +172,6 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  console.log(`show-context: ${String(error?.message || error).replaceAll(/\s+/g, ' ').trim()}`);
+  console.log(`bsd-ims: ${String(error?.message || error).replaceAll(/\s+/g, ' ').trim()}`);
   process.exitCode = 1;
 }

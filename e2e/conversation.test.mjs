@@ -9,7 +9,7 @@ import { buildAskPrompt } from '../src/ask-prompt.mjs';
 import { parseTranscript } from '../src/show-context.mjs';
 
 const repo = path.resolve(import.meta.dirname, '..');
-const cli = path.join(repo, 'bin/show-context.mjs');
+const cli = path.join(repo, 'bin/bsd-ims.mjs');
 const fixture = path.join(import.meta.dirname, 'fixtures/conversation.jsonl');
 const demoFixture = path.join(import.meta.dirname, 'fixtures/demo.jsonl');
 const demoAnswer = path.join(import.meta.dirname, 'fixtures/demo-answer.json');
