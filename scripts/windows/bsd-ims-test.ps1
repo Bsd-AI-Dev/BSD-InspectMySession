@@ -1,5 +1,5 @@
 <#
-  bsd-ims test run (version 0.2: one server, session menu with Settings and Ask log, theme button, waiting popup).
+  bsd-ims test run (version 0.3: one server, session menu with Settings and Ask log, theme button, waiting popup).
   By default it checks only what is still open; add -Full for every question.
   1. Installs or updates bsd-ims with scripts/windows/install.ps1 from GitHub.
   2. Opens the newest session of a project folder in your browser.

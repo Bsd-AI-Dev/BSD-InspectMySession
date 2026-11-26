@@ -26,7 +26,7 @@
 
 ## Decisions already made
 - Environment variables keep their `SHOW_CONTEXT_*` names. Output goes to `~/.cache/bsd-ims/`.
-- Version 0.1 (the PowerShell session picker instead of the web menu) is kept on branch `version-0.1`. This environment could not push git tags, so versions are kept as branches.
+- Older versions are kept as branches (this environment could not push git tags): `version-0.1` (PowerShell session picker), `version-0.2` (web menu before Settings/Ask log). Current: 0.3.0 on `main`.
 - Per-tool sizes in the Tools part are estimates: the measured total split by each tool definition's JSON length.
 - The session page is dark by default. The waiting popup says "Analyzing your question…" (no "Claude").
 - Auto model choice: session model while the cache is warm (or the estimate is within the cost limit, default $0.10), otherwise Haiku 5.5. The session size alone is not used: every session already starts at about 45k tokens. The ask log keeps the question text by default and is listed newest first.

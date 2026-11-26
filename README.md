@@ -34,7 +34,7 @@ To pick up upstream fixes in a clone: `git remote add upstream https://github.co
 
 ## Status
 
-The automated tests pass on Linux. Version 0.1 was tested on Windows 10 with PowerShell 7 and Claude Code 2.1.327: opening the page, matching the current folder, per-tool sizes and *Where did this come from?* all worked. The session menu, the single server, the theme button and the waiting popup (version 0.2) were tested on Windows on 2026-11-26. The Settings and Ask log tabs and the automatic model choice are new and not yet tested on Windows.
+The automated tests pass on Linux. Version 0.1 was tested on Windows 10 with PowerShell 7 and Claude Code 2.1.327: opening the page, matching the current folder, per-tool sizes and *Where did this come from?* all worked. Version 0.3 was tested on Windows on 2026-11-26: the session menu and single server, the theme button, the waiting popup and Cancel, the Settings and Ask log tabs, the automatic model choice and Stop server.
 
 ## Install or update (Windows)
 
@@ -46,7 +46,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Bsd-AI-Dev/BSD-InspectMySess
 
 `scripts/windows/install.ps1` checks Node.js, stops running bsd-ims servers, downloads the latest `main` from GitHub, installs it with npm from the downloaded file (recent npm versions refuse to install from a web address with `EALLOWREMOTE`), and checks the result. Run the same command to update. To remove: `npm uninstall -g bsd-ims`.
 
-**Older version.** Version 0.1, with the PowerShell session picker instead of the web menu, is kept on the `version-0.1` branch. Install it by adding `-Branch version-0.1` at the end of the command above.
+**Older versions** are kept on branches: `version-0.1` (the PowerShell session picker instead of the web menu) and `version-0.2` (the web menu before the Settings and Ask log tabs). Install one by adding `-Branch version-0.2` (or `version-0.1`) at the end of the command above.
 
 For development, from a clone: `git clone https://github.com/Bsd-AI-Dev/BSD-InspectMySession`, then `npm link` in that folder. The package is not published on npm.
 

@@ -1,6 +1,6 @@
 {
   "name": "bsd-ims",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Windows-friendly derivative of show-context: a local web page with all your Claude Code sessions and the context each one read.",
   "type": "module",
   "keywords": [
