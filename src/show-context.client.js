@@ -787,7 +787,7 @@ function waitingCard(question, label) {
   card.classList.add('on');
   setMode('mode-split', false);
 }
-// bsd-ims: a popup with a timer while Claude answers; Cancel stops the request and the server stops Claude.
+// bsd-ims: a popup with a timer while the question is analyzed; Cancel stops the request and the server stops Claude.
 let askController = null;
 let waitTimer = 0;
 function showWait() {

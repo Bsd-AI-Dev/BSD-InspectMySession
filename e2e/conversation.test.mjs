@@ -1006,7 +1006,7 @@ test('asking shows a waiting popup with a timer, and Cancel stops the ask', asyn
     await waitForValue(cdp, 'document.getElementById("ask").classList.contains("on")');
     await cdp.evaluate('document.getElementById("ask-why").click()');
     await waitForValue(cdp, popupOn);
-    assert.match(await cdp.evaluate(`document.getElementById('ask-wait').textContent`), /Claude is analyzing/);
+    assert.match(await cdp.evaluate(`document.getElementById('ask-wait').textContent`), /Analyzing your question/);
     assert.equal(await cdp.evaluate(`document.getElementById('ask-wait-time').textContent`), '0:00');
     await waitForValue(cdp, `document.getElementById('ask-wait-time').textContent === '0:01'`, 3000);
     await cdp.evaluate(`document.getElementById('ask-cancel').click()`);

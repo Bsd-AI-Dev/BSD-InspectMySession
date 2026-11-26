@@ -86,7 +86,7 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
   [void](Ask 'Click "Light theme" at the top of the menu. Do both the menu and the session page turn light?')
   [void](Ask 'Click "Dark theme". Do both turn dark again?')
   Write-Host 'In the Conversation tab, select a sentence Claude wrote and click "Where did this come from?".' -ForegroundColor Cyan
-  [void](Ask 'Did a popup "Claude is analyzing..." with a running timer appear?')
+  [void](Ask 'Did a popup "Analyzing your question..." with a running timer appear?')
   [void](Ask 'Did a black console window open while it was waiting? (the answer should be n)')
   if ((Ask 'When the popup closed, did it show the source lines?') -eq 'n') { AskDetails 'Paste the exact error text' }
   Write-Host 'Ask "Where did this come from?" again, and click Cancel in the popup after a few seconds.' -ForegroundColor Cyan
