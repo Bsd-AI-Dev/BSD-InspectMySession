@@ -28,7 +28,13 @@ export async function ask({ sessionId, cwd, prompt, signal }) {
     prompt
   ];
   return await new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { cwd: cwd || process.cwd(), signal, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(binary, args, {
+      cwd: cwd || process.cwd(),
+      signal,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // The server has no console, so without this Windows opens a console window for claude.exe.
+      windowsHide: true
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', chunk => { stdout += chunk; });

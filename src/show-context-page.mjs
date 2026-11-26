@@ -70,6 +70,15 @@ ${css}</style>
 </div>
 <svg id="wires"></svg>
 <div class="answer" id="answer" role="dialog" aria-label="Answer"></div>
+<div class="ask-wait" id="ask-wait" role="status" aria-live="polite">
+  <div class="ask-wait-box">
+    <span class="spinner" aria-hidden="true"></span>
+    <p class="ask-wait-title">Claude is analyzing…</p>
+    <p class="ask-wait-note">A copy of this session is looking for the source. This can take up to 3 minutes.</p>
+    <p class="ask-wait-time" id="ask-wait-time">0:00</p>
+    <button type="button" id="ask-cancel">Cancel</button>
+  </div>
+</div>
 <script id="show-context-data" type="application/json">${safeJson(data)}</script>
 <script>
 ${client}</script>

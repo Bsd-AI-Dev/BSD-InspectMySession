@@ -1361,3 +1361,65 @@ aside .amount input {
 :root.in-menu .theme {
   display: none;
 }
+
+/* bsd-ims: waiting popup while Claude answers */
+.ask-wait {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.ask-wait.on {
+  display: flex;
+}
+.ask-wait-box {
+  width: min(340px, calc(100vw - 32px));
+  padding: 24px 22px 18px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--hair);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  font: 13px/1.45 var(--sans);
+}
+.ask-wait-box .spinner {
+  display: inline-block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--hair);
+  border-top-color: var(--now);
+  animation: ask-spin 0.9s linear infinite;
+}
+@keyframes ask-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ask-wait-title {
+  margin: 12px 0 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.ask-wait-note {
+  margin: 0;
+  color: var(--muted);
+}
+.ask-wait-time {
+  margin: 10px 0 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+#ask-cancel {
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  padding: 4px 14px;
+  cursor: pointer;
+}

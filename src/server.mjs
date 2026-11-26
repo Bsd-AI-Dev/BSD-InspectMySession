@@ -105,6 +105,8 @@ export async function startServer({ root, key = '', version = '', stateFile = ''
     busy = true;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180_000);
+    // The page's Cancel button closes the request: stop Claude so the next ask can start.
+    response.on('close', () => { if (!response.writableFinished) controller.abort(); });
     try {
       const body = await readJson(request);
       if (!['text', 'tool'].includes(body.kind) || typeof body.question !== 'string') {

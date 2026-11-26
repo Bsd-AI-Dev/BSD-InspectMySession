@@ -782,12 +782,30 @@ function cardHeading(question, count = 0) {
 function waitingCard(question, label) {
   const card = $('answer');
   card.innerHTML = `${cardHeading(question)}
-    <div class="a-sel">${esc(label)}</div>
-    <div class="a-wait"><i></i>Asking a fork of this session...</div>`;
+    <div class="a-sel">${esc(label)}</div>`;
   card.querySelector('.a-close').onclick = closeAnswer;
   card.classList.add('on');
   setMode('mode-split', false);
 }
+// bsd-ims: a popup with a timer while Claude answers; Cancel stops the request and the server stops Claude.
+let askController = null;
+let waitTimer = 0;
+function showWait() {
+  const started = Date.now();
+  const tick = () => {
+    const seconds = Math.floor((Date.now() - started) / 1000);
+    $('ask-wait-time').textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  };
+  tick();
+  waitTimer = setInterval(tick, 250);
+  $('ask-wait').classList.add('on');
+  $('ask-cancel').focus();
+}
+function hideWait() {
+  clearInterval(waitTimer);
+  $('ask-wait').classList.remove('on');
+}
+$('ask-cancel').onclick = () => askController?.abort();
 async function runAsk(body, label, question) {
   if (!DATA.live) {
     $('answer').innerHTML = `${cardHeading(question)}
@@ -795,16 +813,26 @@ async function runAsk(body, label, question) {
     $('answer').querySelector('.a-close').onclick = closeAnswer;
     return;
   }
+  const controller = new AbortController();
+  askController = controller;
+  showWait();
   try {
     const response = await fetch('ask', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Ask failed with status ${response.status}.`);
+    hideWait();
     showAnswer(data, label, question);
   } catch (error) {
+    hideWait();
+    if (controller.signal.aborted) {
+      closeAnswer();
+      return;
+    }
     $('answer').innerHTML = `${cardHeading(question)}
       <p class="a-error">${esc(error.message || error)}</p>`;
     $('answer').querySelector('.a-close').onclick = closeAnswer;
