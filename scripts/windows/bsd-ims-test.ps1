@@ -1,5 +1,5 @@
 <#
-  bsd-ims test run (version 0.2: one server, session menu, theme button, waiting popup).
+  bsd-ims test run (version 0.2: one server, session menu with Settings and Ask log, theme button, waiting popup).
   1. Installs or updates bsd-ims with scripts/windows/install.ps1 from GitHub.
   2. Opens the newest session of a project folder in your browser.
   3. Checks by itself that a second run reuses the same server and that only one server runs.
@@ -92,6 +92,16 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
   Write-Host 'Ask "Where did this come from?" again, and click Cancel in the popup after a few seconds.' -ForegroundColor Cyan
   [void](Ask 'Did the popup close?')
   [void](Ask 'Ask once more and wait. Did it show an answer (not "An ask is already running")?')
+  [void](Ask 'Did the popup show "Using <model>:" and a reason (for example "cache expired")?')
+  [void](Ask 'Does the bottom of the answer card show the model, "tokens in (... from cache ...)", "out" and a cost?')
+  Write-Host 'Click the Settings tab in the menu.' -ForegroundColor Cyan
+  [void](Ask 'Does it show "Model for Where did this come from?" set to Auto, and a price table?')
+  Write-Host 'Click the Ask log tab.' -ForegroundColor Cyan
+  [void](Ask 'Are your questions listed, newest first, with model and cost?')
+  [void](Ask 'Click the newest one. Does a popup show why the model was chosen and the tokens and cost per part?')
+  AskDetails 'Copy the "Model" and "Why this model" lines from that popup here'
+  Write-Host 'Close the popup. In Settings choose "Same as the session", click Save, and ask one more question.' -ForegroundColor Cyan
+  [void](Ask 'Did the popup and the answer use the session model?')
   Write-Host 'Click "Copy path" next to a session in the menu, then paste it here with Ctrl+V.' -ForegroundColor Cyan
   $copied = (Read-Host 'Pasted path').Trim().Trim('"')
   Note "copy path works: $(if ($copied -and (Test-Path -LiteralPath $copied)) { 'yes' } else { "NO ('$copied')" })"

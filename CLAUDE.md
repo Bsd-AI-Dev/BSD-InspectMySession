@@ -15,8 +15,9 @@
 
 ## Layout
 - `bin/bsd-ims.mjs`: CLI. Picks the session (id prefix, `CLAUDE_CODE_SESSION_ID`, or newest in the current folder), writes the static page, finds or starts the live server, opens the browser (`rundll32` / `open` / `xdg-open`). `--stop`, `--static`, `--no-open`, internal `--serve <stateFile> <key>`.
-- `src/server.mjs`: one local server for all sessions. Routes under `/<token>/`: `` (menu), `api/ping`, `api/sessions`, `s/<id>/` (session page), `s/<id>/ask`, `stop`. Idle timeout 1 h (never during an ask). POST routes check `Origin`.
-- `src/menu-page.mjs`: the menu (sessions grouped by project, filters, Copy path, Refresh, Stop server). The session page is shown in an iframe, unchanged.
+- `src/server.mjs`: one local server for all sessions. Routes under `/<token>/`: `` (menu), `api/ping`, `api/sessions`, `api/settings` (GET/POST), `api/asks`, `s/<id>/` (session page), `s/<id>/ask-model` (the model the next ask will use, and why), `s/<id>/ask`, `stop`. Idle timeout 1 h (never during an ask). POST routes check `Origin`. Every ask, also cancelled or failed ones, is written to the ask log before the reply.
+- `src/menu-page.mjs`: the menu, with tabs Sessions (grouped by project, filters, Copy path), Settings and Ask log (cost popup); Light/Dark theme, Refresh, Stop server. The session page is shown in an iframe; it hides its own theme button there and follows the menu's theme through `localStorage` (`show-context-theme`).
+- `src/ask-model.mjs`: the model for an ask, no AI: the session's last request (time, model, size, cache lifetime from `usage.cache_creation`) and the cost limit decide between the session model (cache warm or cheap enough) and Haiku 5.5. `src/prices.mjs`: price table with its date. `src/ask-store.mjs`: `settings.json` and `asks.jsonl` next to `server.json`.
 - `src/sessions.mjs`: projects root, session list, per-session title/cwd/source read from the first 2 MB of a transcript.
 - Upstream files, mostly unchanged: `src/show-context.mjs` (parser), `src/start-load.mjs` (start-up breakdown), `src/show-context-page.mjs`, `src/show-context.client.js`, `src/show-context.css`, `src/agents/claude.mjs` (ask via `claude --resume … --fork-session --print`).
 - The server address is kept in `server.json` next to the output page (default `~/.cache/bsd-ims/`). It is reused only when the version, projects root and all `SHOW_CONTEXT_*` variables (except `SHOW_CONTEXT_OUT`) match.
@@ -27,6 +28,8 @@
 - Environment variables keep their `SHOW_CONTEXT_*` names. Output goes to `~/.cache/bsd-ims/`.
 - Version 0.1 (the PowerShell session picker instead of the web menu) is kept on branch `version-0.1`. This environment could not push git tags, so versions are kept as branches.
 - Per-tool sizes in the Tools part are estimates: the measured total split by each tool definition's JSON length.
+- The session page is dark by default. The waiting popup says "Analyzing your question…" (no "Claude").
+- Auto model choice: session model while the cache is warm (or the estimate is within the cost limit, default $0.10), otherwise Haiku 5.5. The session size alone is not used: every session already starts at about 45k tokens. The ask log keeps the question text by default and is listed newest first.
 - `Grep` and `Glob` results are not counted as reads yet (listed as `knownGaps` in the contract). Ask the owner before changing this.
 - `contract/` is not in the npm `files` list, but installs from the GitHub archive include the whole repo, so the checker is available in the installed folder.
 

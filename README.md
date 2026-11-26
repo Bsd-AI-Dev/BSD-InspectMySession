@@ -25,13 +25,16 @@ To pick up upstream fixes in a clone: `git remote add upstream https://github.co
 - **Works with VS Code sessions** (their main request is labelled `sdk`) and with sessions that start with an API error.
 - **Per-tool sizes.** The Tools part of the start-up view lists every tool with its own size.
 - **One server and a session menu.** Upstream starts a new server for every page. Here one local server serves a menu of all sessions, grouped by project, and every session page.
+- **Dark theme by default**, with one button that switches the menu and the session page together.
+- ***Where did this come from?* shows a waiting popup** with a timer and **Cancel**, names the model it uses, and reports the tokens and cost of each answer.
+- **Settings and Ask log tabs.** Choose the model for questions (by default chosen automatically from the cache state) and see every question with its cost.
 - **Install and test scripts for Windows** (`scripts/windows/`).
 - **Transcript contract and checker** (`contract/`) that tell you when a Claude Code update changes the transcript format.
 - The command is `bsd-ims`, so it installs next to `show-context` without a clash. The environment variables keep their `SHOW_CONTEXT_*` names. Pages are written to `~/.cache/bsd-ims/` (upstream uses `~/.cache/show-context/`).
 
 ## Status
 
-The automated tests pass on Linux. Version 0.1 was tested on Windows 10 with PowerShell 7 and Claude Code 2.1.327: opening the page, matching the current folder, per-tool sizes and *Where did this come from?* all worked. The session menu and the single server (version 0.2) are new and not yet tested on Windows.
+The automated tests pass on Linux. Version 0.1 was tested on Windows 10 with PowerShell 7 and Claude Code 2.1.327: opening the page, matching the current folder, per-tool sizes and *Where did this come from?* all worked. The session menu, the single server, the theme button and the waiting popup (version 0.2) were tested on Windows on 2026-11-26. The Settings and Ask log tabs and the automatic model choice are new and not yet tested on Windows.
 
 ## Install or update (Windows)
 
@@ -72,7 +75,20 @@ Your browser opens a page with a menu on the left: all sessions, grouped by proj
 - click any session to show it on the right;
 - filter by text, project, date or id, and by source;
 - copy a session's transcript path (**Copy path**);
-- reload the list (**Refresh**) and stop the server (**Stop server**).
+- reload the list (**Refresh**) and stop the server (**Stop server**);
+- switch both the menu and the session page between dark and light (**Light theme** / **Dark theme**).
+
+The menu has three tabs: **Sessions** (above), **Settings** and **Ask log**.
+
+### Asking *Where did this come from?*
+
+Select text in the Conversation view and click *Where did this come from?*. A popup shows which model is used and why, and a timer; **Cancel** stops the question. The answer card shows the model, the tokens (read from cache, written to cache, new, output) and the cost Claude Code reported. If a cheaper model found no source, **Try again with** asks again with the session's own model.
+
+**Which model answers.** The question runs on a copy of your whole session. Anthropic keeps the session in its cache for 5 minutes or 1 hour after its last request, and only for the same model. In **Auto** (the default), bsd-ims estimates the cost with the session's model: while the cache is warm that is a few cents, so the session's model is used; once it has expired it is often 5 to 25 times more than Haiku 5.5, so Haiku 5.5 is used when the estimate is over the cost limit ($0.10 by default). No AI is involved; the rule only uses the time of the session's last request, its size, its model and the price table.
+
+**Settings tab:** model for questions (Auto, the session's model, a fixed model, or any model id), cache lifetime (read from the session, or 5 minutes / 1 hour), cost limit, time limit per question, whether the ask log keeps the question text, and the price table used for estimates. Settings are saved in `~/.cache/bsd-ims/settings.json`.
+
+**Ask log tab:** every question, newest first, with model, cost and result. Click one for its details: why that model was chosen, the estimate made before asking, and the tokens and cost per part. The log is `~/.cache/bsd-ims/asks.jsonl` and stays on your computer. With a Claude subscription the dollar amounts are what Claude Code reports; you are not charged them, they count toward your usage limits.
 
 One local server serves the menu and all session pages. Running `bsd-ims` again reuses it. It stops by itself after an hour without use, or with **Stop server** or `bsd-ims --stop`. Each session page is rebuilt from its transcript when you open it.
 
