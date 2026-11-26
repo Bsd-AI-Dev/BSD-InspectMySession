@@ -1356,3 +1356,8 @@ aside .amount input {
     font-size: 20px;
   }
 }
+
+/* bsd-ims: inside the menu, the menu's theme button is used instead */
+:root.in-menu .theme {
+  display: none;
+}

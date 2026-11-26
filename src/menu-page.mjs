@@ -3,16 +3,14 @@
 
 const CSS = `
 :root {
+  color-scheme: dark;
+  --bg: #161615; --side: #1f1f1d; --text: #ececea; --muted: #9b9b95; --line: #33332f;
+  --hover: #2a2a27; --pick: #22324d; --pick-line: #7aa2f7; --button: #262624; --danger: #f97066;
+}
+:root[data-theme='light'] {
   color-scheme: light;
   --bg: #f6f6f3; --side: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e3de;
   --hover: #f0f0eb; --pick: #e6eefb; --pick-line: #3b6fd8; --button: #ffffff; --danger: #b42318;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #161615; --side: #1f1f1d; --text: #ececea; --muted: #9b9b95; --line: #33332f;
-    --hover: #2a2a27; --pick: #22324d; --pick-line: #7aa2f7; --button: #262624; --danger: #f97066;
-  }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -74,8 +72,24 @@ main { flex: 1; min-width: 0; display: flex; }
 }
 `;
 
+// Runs in <head> so the page never flashes in the wrong theme. The key is shared with the session page.
+const THEME_SCRIPT = `
+function readTheme() {
+  try { return localStorage.getItem('show-context-theme') === 'light' ? 'light' : 'dark'; } catch { return 'dark'; }
+}
+document.documentElement.dataset.theme = readTheme();
+`;
+
 const SCRIPT = `
 const $ = id => document.getElementById(id);
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('theme').textContent = theme === 'dark' ? 'Light theme' : 'Dark theme';
+  // The session page in the frame sees this change through the storage event and follows it.
+  try { localStorage.setItem('show-context-theme', theme); } catch {}
+}
+setTheme(readTheme());
+$('theme').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 const params = new URLSearchParams(location.search);
 let selected = params.get('session') || '';
 let projects = [];
@@ -209,12 +223,14 @@ export function renderMenuPage({ version = '' } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BSD InspectMySession</title>
 <style>${CSS}</style>
+<script>${THEME_SCRIPT}</script>
 </head>
 <body>
 <aside>
   <header>
     <div class="top">
       <h1>InspectMySession <span>${version ? `v${version}` : ''}</span></h1>
+      <button id="theme" type="button" title="Switch both pages between dark and light">Light theme</button>
       <button id="refresh" type="button" title="Reload the session list">Refresh</button>
       <button id="stop" type="button" title="Stop the local bsd-ims server">Stop server</button>
     </div>

@@ -75,7 +75,12 @@ function setTheme(theme) {
   store.set('show-context-theme', theme);
   redraw();
 }
-setTheme(store.get('show-context-theme') === 'dark' ? 'dark' : 'light');
+setTheme(store.get('show-context-theme') === 'light' ? 'light' : 'dark');
+// Inside the bsd-ims menu, the menu's theme button sets the theme for both pages.
+if (window.top !== window) document.documentElement.classList.add('in-menu');
+addEventListener('storage', event => {
+  if (event.key === 'show-context-theme') setTheme(event.newValue === 'light' ? 'light' : 'dark');
+});
 themeButton.addEventListener('click', () =>
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')
 );

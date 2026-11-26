@@ -10,7 +10,7 @@ function safeJson(value) {
 export function renderShowContextPage(model, options = {}) {
   const data = { ...model, live: options.live === true };
   return `<!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,7 +26,7 @@ ${css}</style>
     <button id="m-context" type="button" aria-pressed="true">Show context</button>
   </div>
   <div class="legend" id="legend"></div>
-  <button class="theme" id="theme" type="button">Dark theme</button>
+  <button class="theme" id="theme" type="button">Light theme</button>
 </header>
 <div class="app">
   <section class="pane" id="conv-pane"><div class="inner" id="conv"></div></section>

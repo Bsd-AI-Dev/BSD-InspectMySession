@@ -935,6 +935,45 @@ test('menu shows the selected session and switches sessions', async t => {
   }
 });
 
+test('one theme button in the menu switches both pages, dark by default', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
+  const hubDir = path.join(temp, 'hub-theme');
+  await mkdir(hubDir, { recursive: true });
+  const env = { SHOW_CONTEXT_CLAUDE_BIN: fake, SHOW_CONTEXT_IDLE_MS: '20000', SHOW_CONTEXT_OUT: path.join(hubDir, 'page.html') };
+  const url = await waitForUrl(start([], env));
+  const cdp = await openCdp(`${url}?session=${sessionId}`);
+  const themes = `({
+    menu: document.documentElement.dataset.theme,
+    page: document.querySelector('#frame').contentDocument?.documentElement.dataset.theme,
+    button: document.getElementById('theme').textContent
+  })`;
+  try {
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument?.getElementById('show-context-data') ? true : false`);
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument.getElementById('stack')?.children.length > 0`);
+    assert.deepEqual(await cdp.evaluate(themes), { menu: 'dark', page: 'dark', button: 'Light theme' });
+    assert.equal(
+      await cdp.evaluate(`getComputedStyle(document.querySelector('#frame').contentDocument.getElementById('theme')).display`),
+      'none',
+      'the session page hides its own theme button inside the menu'
+    );
+    await cdp.evaluate(`document.getElementById('theme').click()`);
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument.documentElement.dataset.theme === 'light'`);
+    assert.deepEqual(await cdp.evaluate(themes), { menu: 'light', page: 'light', button: 'Dark theme' });
+    await cdp.evaluate('location.reload()');
+    await waitForValue(cdp, `document.readyState === 'complete' && document.querySelector('#frame').contentDocument?.getElementById('show-context-data') ? true : false`);
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument.documentElement.dataset.theme === 'light'`);
+    assert.equal(await cdp.evaluate(`document.documentElement.dataset.theme`), 'light', 'the choice is remembered');
+    await cdp.evaluate(`document.getElementById('theme').click()`);
+    await waitForValue(cdp, `document.querySelector('#frame').contentDocument.documentElement.dataset.theme === 'dark'`);
+    assert.equal(await cdp.evaluate(`document.documentElement.dataset.theme`), 'dark');
+    assert.deepEqual(cdp.exceptions, []);
+  } finally {
+    cdp.socket.close();
+    cdp.child.kill('SIGTERM');
+    await runCli(['--stop'], env);
+  }
+});
+
 test('a missing Claude Code CLI gives an answer that says how to fix it', async () => {
   const hubDir = path.join(temp, 'hub-missing-claude');
   await mkdir(hubDir, { recursive: true });

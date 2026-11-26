@@ -585,7 +585,7 @@ test('size filter hides rows under 2k tokens by default, start parts included', 
   assert.doesNotMatch(dom, /<html[^>]*data-script-error=/);
   const startRows = model.startLoad.parts.flatMap(part => [part, ...(part.items || [])]);
   assert.match(dom, /data-amount="2000"/);
-  assert.match(dom, /data-theme-start="light"/);
+  assert.match(dom, /data-theme-start="dark"/);
   assert.match(dom, new RegExp(`data-read-count="${model.reads.filter(read => read.size >= 2000).length}"`));
   assert.match(dom, new RegExp(`data-start-row-count="${startRows.filter(row => row.size >= 2000).length}"`));
   assert.ok(
