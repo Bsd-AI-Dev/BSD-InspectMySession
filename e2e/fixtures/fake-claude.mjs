@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { appendFile, readFile } from 'node:fs/promises';
 
+// Like Claude Code starting helper processes (MCP servers): a child that keeps our output pipes open.
+if (process.env.SHOW_CONTEXT_FAKE_HELPER_MS) {
+  const { spawn } = await import('node:child_process');
+  spawn(process.execPath, ['-e', `setTimeout(() => {}, ${Number(process.env.SHOW_CONTEXT_FAKE_HELPER_MS)})`], {
+    stdio: ['ignore', 'inherit', 'inherit']
+  }).unref();
+}
 const log = process.env.SHOW_CONTEXT_FAKE_LOG;
 if (log) await appendFile(log, `${JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() })}\n`);
 if (process.env.SHOW_CONTEXT_FAKE_WAIT_MS) {

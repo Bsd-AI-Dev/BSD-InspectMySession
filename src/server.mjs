@@ -29,7 +29,7 @@ async function readJson(request) {
 }
 
 // One local server for every session: the menu, each session page, and its ask route.
-export async function startServer({ root, key = '', version = '', stateFile = '' }) {
+export async function startServer({ root, key = '', version = '', stateFile = '', exitOnStop = false }) {
   const token = randomBytes(32).toString('hex');
   const port = process.env.SHOW_CONTEXT_PORT ? Number(process.env.SHOW_CONTEXT_PORT) : 0;
   const idleMs = Number(process.env.SHOW_CONTEXT_IDLE_MS) || 60 * 60 * 1000;
@@ -37,6 +37,7 @@ export async function startServer({ root, key = '', version = '', stateFile = ''
   // Settings and the ask log live next to server.json.
   const store = askStore(stateFile ? path.dirname(stateFile) : path.join(os.homedir(), '.cache/bsd-ims'));
   let busy = false;
+  let askController = null;
   let timer;
   let origin = '';
   let url = '';
@@ -49,8 +50,12 @@ export async function startServer({ root, key = '', version = '', stateFile = ''
         if (state.url === url) await unlink(stateFile);
       } catch {}
     }
+    askController?.abort();
     server.close();
     server.closeAllConnections();
+    // Claude Code's helper processes can keep the stopped question's output pipes open, which would keep
+    // this process alive (seen on Windows). The --serve process therefore exits by itself.
+    if (exitOnStop) setTimeout(() => process.exit(0), 200);
   };
   const touch = () => {
     clearTimeout(timer);
@@ -136,6 +141,7 @@ export async function startServer({ root, key = '', version = '', stateFile = ''
     const settings = await store.loadSettings();
     const started = Date.now();
     const controller = new AbortController();
+    askController = controller;
     let cancelled = false;
     const timeout = setTimeout(() => controller.abort(), settings.askTimeoutMinutes * 60_000);
     // The page's Cancel button closes the request: stop Claude so the next ask can start.
@@ -203,6 +209,7 @@ export async function startServer({ root, key = '', version = '', stateFile = ''
     } finally {
       clearTimeout(timeout);
       busy = false;
+      askController = null;
       touch();
     }
   }

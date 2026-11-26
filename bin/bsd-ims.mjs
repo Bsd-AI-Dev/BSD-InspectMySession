@@ -175,7 +175,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--serve') {
     const [, stateFile, key] = args;
-    const { url } = await startServer({ root: projectsRoot(), key, version: packageJson.version, stateFile });
+    const { url } = await startServer({ root: projectsRoot(), key, version: packageJson.version, stateFile, exitOnStop: true });
     process.stdout.write(`${url}\n`);
     return;
   }

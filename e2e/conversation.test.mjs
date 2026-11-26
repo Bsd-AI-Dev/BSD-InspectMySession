@@ -898,6 +898,42 @@ test('one live server is reused, lists sessions by project and stops on request'
   assert.equal((await runCli(['--stop'], env)).stdout, 'bsd-ims: no server running\n');
 });
 
+test('Stop server ends the server process, also while a question is running', async () => {
+  const hubDir = path.join(temp, 'hub-stop-busy');
+  await mkdir(hubDir, { recursive: true });
+  const log = path.join(hubDir, 'fake.log');
+  const env = {
+    SHOW_CONTEXT_CLAUDE_BIN: fake,
+    SHOW_CONTEXT_FAKE_WAIT_MS: '15000',
+    SHOW_CONTEXT_FAKE_HELPER_MS: '15000',
+    SHOW_CONTEXT_FAKE_LOG: log,
+    SHOW_CONTEXT_IDLE_MS: '20000',
+    SHOW_CONTEXT_OUT: path.join(hubDir, 'page.html')
+  };
+  const url = await waitForUrl(start([], env));
+  const { pid } = JSON.parse(await readFile(path.join(hubDir, 'server.json'), 'utf8'));
+  const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  const origin = new URL(url).origin;
+  const asking = fetch(`${sessionPage(url)}ask`, {
+    method: 'POST',
+    headers: { origin, 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'text', question: 'Where?', text: 'Alpha source', messageIndex: 2 })
+  }).catch(() => null);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (await readFile(log, 'utf8').catch(() => '')) break;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  assert.equal((await fetch(`${url}stop`, { method: 'POST', headers: { origin } })).status, 200);
+  let running = true;
+  for (let attempt = 0; attempt < 150 && running; attempt += 1) {
+    running = alive();
+    if (running) await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  assert.equal(running, false, 'the server process ended within 3 seconds');
+  await asking;
+  await assert.rejects(readFile(path.join(hubDir, 'server.json')));
+});
+
 test('menu shows the selected session and switches sessions', async t => {
   if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
   const hubDir = path.join(temp, 'hub-menu');
