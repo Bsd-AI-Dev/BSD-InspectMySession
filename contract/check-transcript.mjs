@@ -405,7 +405,9 @@ async function checkTranscript(target, contract, opts) {
     const upstream = slugOf(cwd, 'upstream');
     // Compare ignoring case: on Windows the drive letter may be stored lowercase (c--projects-x).
     const same = (a, b) => a.toLowerCase() === b.toLowerCase();
-    if (same(target.project, upstream)) c.pass();
+    // bsd-ims uses the "proposed" rule, so a folder that matches it is fine.
+    const inUse = String(rules.inUse || '').startsWith('proposed') ? proposed : upstream;
+    if (same(target.project, inUse) || same(target.project, upstream)) c.pass();
     else if (same(target.project, proposed)) {
       c.add('INFO', 'storage:slug', `Project folder "${target.project}" matches the "proposed" rule (${rules.proposed}) but not upstream's rule (${rules.upstream}).`,
         { effect: 'Expected on Windows with the unmodified upstream code: "guess the session for this folder" fails. Giving a session id works.',

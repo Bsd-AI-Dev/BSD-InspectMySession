@@ -19,6 +19,8 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+# Read program output as UTF-8, so characters such as the middle dot in bsd-ims output stay readable.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $log = [System.Collections.Generic.List[string]]::new()
 function Note([string]$Text) { Write-Host $Text; $log.Add($Text) }
 function Ask([string]$Question) {
