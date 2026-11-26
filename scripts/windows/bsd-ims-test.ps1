@@ -107,6 +107,20 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
   Note "copy path works: $(if ($copied -and (Test-Path -LiteralPath $copied)) { 'yes' } else { "NO ('$copied')" })"
 
   Note ''
+  Note '== 4b. Ask log: models of the last 5 questions (no question text)'
+  $asksFile = Join-Path $env:USERPROFILE '.cache\bsd-ims\asks.jsonl'
+  if (Test-Path -LiteralPath $asksFile) {
+    foreach ($line in @(Get-Content -LiteralPath $asksFile -Tail 5)) {
+      try { $a = $line | ConvertFrom-Json } catch { continue }
+      $used = @($a.models | ForEach-Object { "$($_.model) `$$($_.costUsd)" }) -join ', '
+      Note "$($a.time) | $($a.status) | asked with: '$($a.choice.model)' | session model: '$($a.choice.sessionModel)' | answered by: $used"
+      Note "    reason: $($a.choice.reason)"
+    }
+  } else {
+    Note "No ask log at $asksFile"
+  }
+
+  Note ''
   Note '== 5. Stop server button'
   Write-Host 'Click "Stop server" at the top of the menu and confirm. Then press Enter here.' -ForegroundColor Cyan
   [void](Read-Host 'Press Enter when done')
