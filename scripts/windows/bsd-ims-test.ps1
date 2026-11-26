@@ -1,5 +1,5 @@
 <#
-  bsd-ims test run (version 0.2: one server, session menu).
+  bsd-ims test run (version 0.2: one server, session menu, theme button, waiting popup).
   1. Installs or updates bsd-ims with scripts/windows/install.ps1 from GitHub.
   2. Opens the newest session of a project folder in your browser.
   3. Checks by itself that a second run reuses the same server and that only one server runs.
@@ -82,8 +82,16 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
   [void](Ask 'Click another session in the menu. Is it shown on the right?')
   [void](Ask 'Type a word in the filter box at the top. Does the list show only matching sessions?')
   [void](Ask 'In "Show context", is there a Tools row with one smaller row per tool under it?')
-  Write-Host 'In the Conversation tab, select a sentence Claude wrote and click "Where did this come from?" (wait up to a minute).' -ForegroundColor Cyan
-  if ((Ask 'Did it show the source lines?') -eq 'n') { AskDetails 'Paste the exact error text' }
+  [void](Ask 'Are the menu and the session page both dark?')
+  [void](Ask 'Click "Light theme" at the top of the menu. Do both the menu and the session page turn light?')
+  [void](Ask 'Click "Dark theme". Do both turn dark again?')
+  Write-Host 'In the Conversation tab, select a sentence Claude wrote and click "Where did this come from?".' -ForegroundColor Cyan
+  [void](Ask 'Did a popup "Claude is analyzing..." with a running timer appear?')
+  [void](Ask 'Did a black console window open while it was waiting? (the answer should be n)')
+  if ((Ask 'When the popup closed, did it show the source lines?') -eq 'n') { AskDetails 'Paste the exact error text' }
+  Write-Host 'Ask "Where did this come from?" again, and click Cancel in the popup after a few seconds.' -ForegroundColor Cyan
+  [void](Ask 'Did the popup close?')
+  [void](Ask 'Ask once more and wait. Did it show an answer (not "An ask is already running")?')
   Write-Host 'Click "Copy path" next to a session in the menu, then paste it here with Ctrl+V.' -ForegroundColor Cyan
   $copied = (Read-Host 'Pasted path').Trim().Trim('"')
   Note "copy path works: $(if ($copied -and (Test-Path -LiteralPath $copied)) { 'yes' } else { "NO ('$copied')" })"
