@@ -24,8 +24,9 @@ aside {
   display: flex; flex-direction: column; background: var(--side); border-right: 1px solid var(--line);
 }
 header { padding: 12px 12px 8px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
-.top { display: flex; align-items: center; gap: 6px; }
-.top h1 { font-size: 14px; margin: 0; flex: 1; font-weight: 600; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.top h1 { font-size: 14px; margin: 0; flex: 1 0 100%; font-weight: 600; }
+.top button { white-space: nowrap; }
 .top h1 span { color: var(--muted); font-weight: 400; font-size: 12px; }
 button {
   font: inherit; color: var(--text); background: var(--button); border: 1px solid var(--line);
