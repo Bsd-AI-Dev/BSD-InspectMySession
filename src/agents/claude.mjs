@@ -15,7 +15,26 @@ function claudeBinary() {
   return 'claude';
 }
 
-export async function ask({ sessionId, cwd, prompt, signal }) {
+// Token use from Claude Code's JSON reply: the whole run, and the models that answered (largest cost first).
+function tokenUse(value) {
+  const usage = value.usage || {};
+  const created = usage.cache_creation || {};
+  const models = Object.entries(value.modelUsage || {})
+    .map(([model, use]) => ({ model, costUsd: Number(use?.costUSD) || 0 }))
+    .sort((a, b) => b.costUsd - a.costUsd);
+  return {
+    tokens: {
+      input: Number(usage.input_tokens) || 0,
+      cacheRead: Number(usage.cache_read_input_tokens) || 0,
+      cacheWrite: Number(usage.cache_creation_input_tokens) || 0,
+      output: Number(usage.output_tokens) || 0
+    },
+    cacheTtl: Number(created.ephemeral_1h_input_tokens) > 0 ? '1h' : '5m',
+    models
+  };
+}
+
+export async function ask({ sessionId, cwd, prompt, signal, model = '' }) {
   const binary = claudeBinary();
   const args = [
     '--resume', sessionId,
@@ -25,6 +44,7 @@ export async function ask({ sessionId, cwd, prompt, signal }) {
     '--output-format', 'json',
     '--tools', '',
     '--max-turns', '1',
+    ...(model ? ['--model', model] : []),
     prompt
   ];
   return await new Promise((resolve, reject) => {
@@ -56,7 +76,8 @@ export async function ask({ sessionId, cwd, prompt, signal }) {
         resolve({
           result: String(value.result || ''),
           totalCostUsd: Number(value.total_cost_usd) || 0,
-          durationMs: Number(value.duration_ms) || 0
+          durationMs: Number(value.duration_ms) || 0,
+          ...tokenUse(value)
         });
       } catch {
         reject(new Error('Claude Code CLI returned invalid JSON.'));

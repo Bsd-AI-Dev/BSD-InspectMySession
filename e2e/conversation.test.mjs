@@ -1034,6 +1034,206 @@ test('asking shows a waiting popup with a timer, and Cancel stops the ask', asyn
   }
 });
 
+// Sessions with a recorded last request (time, model, size, cache kind), for the model choice and the ask log.
+const WARM = 'aaaaaaaa-1111-4111-8111-111111111111';
+const COLD = 'aaaaaaaa-2222-4222-8222-222222222222';
+const HOUR = 'aaaaaaaa-3333-4333-8333-333333333333';
+const BIG = 'aaaaaaaa-4444-4444-8444-444444444444';
+const NOTIME = 'aaaaaaaa-5555-4555-8555-555555555555';
+const timedRoot = () => path.join(temp, 'timed-projects');
+
+async function timedSession(id, { ageMs, ttl = '5m', model = 'claude-opus-5-5', contextTokens = 60000 } = {}) {
+  const dir = path.join(timedRoot(), 'timed');
+  await mkdir(dir, { recursive: true });
+  const records = (await readFile(fixture, 'utf8')).trim().split('\n').map(JSON.parse);
+  if (ageMs != null) {
+    records.push({
+      type: 'assistant',
+      isSidechain: false,
+      timestamp: new Date(Date.now() - ageMs).toISOString(),
+      message: {
+        id: `timed-${id}`,
+        model,
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Done.' }],
+        usage: {
+          input_tokens: 10,
+          cache_read_input_tokens: contextTokens - 2015,
+          cache_creation_input_tokens: 2000,
+          output_tokens: 5,
+          cache_creation: ttl === '1h'
+            ? { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 2000 }
+            : { ephemeral_5m_input_tokens: 2000, ephemeral_1h_input_tokens: 0 }
+        }
+      }
+    });
+  }
+  await writeFile(path.join(dir, `${id}.jsonl`), records.map(jsonLine).join(''));
+}
+
+async function timedHub(name, extra = {}) {
+  const dir = path.join(temp, name);
+  await mkdir(dir, { recursive: true });
+  const env = {
+    SHOW_CONTEXT_CLAUDE_BIN: fake,
+    SHOW_CONTEXT_IDLE_MS: '20000',
+    SHOW_CONTEXT_OUT: path.join(dir, 'page.html'),
+    SHOW_CONTEXT_PROJECTS: timedRoot(),
+    SHOW_CONTEXT_FAKE_LOG: path.join(dir, 'fake.log'),
+    ...extra
+  };
+  return { dir, env };
+}
+
+const askPost = (url, id, body = {}, signal) => fetch(`${sessionPage(url, id)}ask`, {
+  method: 'POST',
+  headers: { origin: new URL(url).origin, 'content-type': 'application/json' },
+  body: JSON.stringify({ kind: 'text', question: 'Where?', text: 'Alpha source', messageIndex: 2, ...body }),
+  signal
+});
+const saveSettings = (url, settings, origin = new URL(url).origin) => fetch(`${url}api/settings`, {
+  method: 'POST',
+  headers: { origin, 'content-type': 'application/json' },
+  body: JSON.stringify(settings)
+});
+const askLog = async url => (await (await fetch(`${url}api/asks`)).json()).asks;
+const fakeRuns = async dir => (await readFile(path.join(dir, 'fake.log'), 'utf8')).trim().split('\n')
+  .map(JSON.parse).filter(line => line.argv);
+const modelFlag = argv => (argv.includes('--model') ? argv[argv.indexOf('--model') + 1] : '');
+
+test('an answer reports model, tokens and cost, and every ask goes to the ask log, newest first', async () => {
+  await timedSession(WARM, { ageMs: 60_000 });
+  const { env } = await timedHub('hub-log', { SHOW_CONTEXT_FAKE_WAIT_MS: '300' });
+  const url = await waitForUrl(start([], env, WARM));
+  try {
+    const first = await (await askPost(url, WARM, { question: 'First?' })).json();
+    assert.equal(first.model, 'claude-opus-5-5');
+    assert.deepEqual(first.tokens, { input: 340, cacheRead: 48900, cacheWrite: 2900, output: 640 });
+    assert.equal(first.costUsd, 0.0123);
+    assert.equal(first.choice.sessionModel, 'claude-opus-5-5');
+    assert.match(first.choice.reason, /cache/i);
+    assert.equal((await askPost(url, WARM, { question: 'Second?' })).status, 200);
+    const controller = new AbortController();
+    const cancelled = askPost(url, WARM, { question: 'Third?' }, controller.signal).catch(() => null);
+    setTimeout(() => controller.abort(), 100);
+    await cancelled;
+    let asks = [];
+    for (let attempt = 0; attempt < 100 && asks.length < 3; attempt += 1) {
+      asks = await askLog(url);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.deepEqual(asks.map(ask => [ask.question, ask.status]), [
+      ['Third?', 'cancelled'],
+      ['Second?', 'answered'],
+      ['First?', 'answered']
+    ]);
+    const entry = asks[1];
+    assert.equal(entry.sessionId, WARM);
+    assert.equal(entry.title, 'Explain the project.');
+    assert.equal(entry.text, 'Alpha source');
+    assert.equal(entry.model, 'claude-opus-5-5');
+    assert.equal(entry.costUsd, 0.0123);
+    assert.ok(Date.parse(entry.time) > Date.now() - 60_000);
+    assert.deepEqual(entry.parts.map(part => [part.label, part.tokens]), [
+      ['Read from cache', 48900],
+      ['Written to cache', 2900],
+      ['New input', 340],
+      ['Output', 640]
+    ]);
+    assert.ok(entry.parts.every(part => part.usd > 0));
+    assert.match(entry.choice.reason, /cache/i);
+
+    assert.equal((await saveSettings(url, { keepQuestionText: false })).status, 200);
+    assert.equal((await askPost(url, WARM, { question: 'Private?' })).status, 200);
+    const latest = (await askLog(url))[0];
+    assert.equal(latest.status, 'answered');
+    assert.equal(latest.question, '');
+    assert.equal(latest.text, '');
+  } finally {
+    await runCli(['--stop'], env);
+  }
+});
+
+test('settings are saved by the server, checked, and a chosen model is passed to Claude', async () => {
+  await timedSession(WARM, { ageMs: 60_000 });
+  const { dir, env } = await timedHub('hub-settings');
+  const url = await waitForUrl(start([], env, WARM));
+  try {
+    const first = await (await fetch(`${url}api/settings`)).json();
+    assert.deepEqual(first.settings, {
+      askModel: 'auto',
+      cacheLifetime: 'detect',
+      costLimitUsd: 0.1,
+      askTimeoutMinutes: 3,
+      keepQuestionText: true
+    });
+    assert.ok(first.prices.some(price => price.model === 'claude-haiku-5-5'));
+    assert.match(first.pricesUpdated, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal((await saveSettings(url, { askModel: 'claude-sonnet-5-5' }, 'http://wrong.test')).status, 403);
+    assert.equal((await saveSettings(url, { askModel: 'not a model!' })).status, 400);
+    assert.equal((await saveSettings(url, { costLimitUsd: -1 })).status, 400);
+    assert.equal((await saveSettings(url, { cacheLifetime: '2h' })).status, 400);
+    assert.equal((await saveSettings(url, { askModel: 'claude-sonnet-5-5' })).status, 200);
+    const saved = JSON.parse(await readFile(path.join(dir, 'settings.json'), 'utf8'));
+    assert.equal(saved.askModel, 'claude-sonnet-5-5');
+    assert.equal(saved.costLimitUsd, 0.1);
+    const answer = await (await askPost(url, WARM)).json();
+    assert.equal(answer.model, 'claude-sonnet-5-5');
+    assert.match(answer.choice.reason, /Settings/);
+    assert.equal(modelFlag((await fakeRuns(dir)).at(-1).argv), 'claude-sonnet-5-5');
+  } finally {
+    await runCli(['--stop'], env);
+  }
+});
+
+test('Auto uses the session model while its cache is warm and Haiku once it has expired', async () => {
+  await timedSession(WARM, { ageMs: 60_000 });
+  await timedSession(COLD, { ageMs: 3 * 60 * 60_000 });
+  await timedSession(HOUR, { ageMs: 30 * 60_000, ttl: '1h' });
+  await timedSession(BIG, { ageMs: 60_000, contextTokens: 600_000 });
+  await timedSession(NOTIME);
+  const { dir, env } = await timedHub('hub-auto');
+  const url = await waitForUrl(start([], env, WARM));
+  const plan = async id => (await fetch(`${sessionPage(url, id)}ask-model`)).json();
+  try {
+    const warm = await plan(WARM);
+    assert.equal(warm.model, 'claude-opus-5-5');
+    assert.equal(warm.sessionModel, 'claude-opus-5-5');
+    assert.equal(warm.label, 'Opus 5.5');
+    assert.match(warm.reason, /cache is still warm/);
+    assert.ok(warm.estimate.sessionModelUsd < 0.1, JSON.stringify(warm));
+    const cold = await plan(COLD);
+    assert.equal(cold.model, 'claude-haiku-5-5');
+    assert.equal(cold.label, 'Haiku 5.5');
+    assert.match(cold.reason, /idle 3 h.*expired/);
+    assert.ok(cold.estimate.sessionModelUsd > cold.estimate.haikuUsd);
+    assert.equal((await plan(HOUR)).model, 'claude-opus-5-5', 'a 1-hour cache is read from the session');
+    const big = await plan(BIG);
+    assert.equal(big.model, 'claude-haiku-5-5');
+    assert.match(big.reason, /limit/);
+    const untimed = await plan(NOTIME);
+    assert.equal(untimed.model, '');
+    assert.match(untimed.reason, /not recorded/);
+
+    assert.equal((await askPost(url, COLD)).status, 200);
+    assert.equal((await askPost(url, COLD, { model: 'claude-opus-5-5' })).status, 200);
+    assert.equal((await askPost(url, NOTIME)).status, 200);
+    assert.deepEqual((await fakeRuns(dir)).map(run => modelFlag(run.argv)), ['claude-haiku-5-5', 'claude-opus-5-5', '']);
+    assert.equal((await askPost(url, COLD, { model: 'bad model!' })).status, 500);
+
+    await saveSettings(url, { cacheLifetime: '5m' });
+    assert.equal((await plan(HOUR)).model, 'claude-haiku-5-5', 'the Settings value replaces detection');
+    await saveSettings(url, { cacheLifetime: 'detect', costLimitUsd: 1 });
+    assert.equal((await plan(COLD)).model, 'claude-opus-5-5');
+    await saveSettings(url, { costLimitUsd: 0.1, askModel: 'session' });
+    const session = await plan(COLD);
+    assert.equal(session.model, 'claude-opus-5-5');
+    assert.match(session.reason, /Settings/);
+  } finally {
+    await runCli(['--stop'], env);
+  }
+});
+
 test('a missing Claude Code CLI gives an answer that says how to fix it', async () => {
   const hubDir = path.join(temp, 'hub-missing-claude');
   await mkdir(hubDir, { recursive: true });

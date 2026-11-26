@@ -6,6 +6,19 @@ if (log) await appendFile(log, `${JSON.stringify({ argv: process.argv.slice(2), 
 if (process.env.SHOW_CONTEXT_FAKE_WAIT_MS) {
   await new Promise(resolve => setTimeout(resolve, Number(process.env.SHOW_CONTEXT_FAKE_WAIT_MS)));
 }
+// Like Claude Code's JSON reply: token use overall and per model. The model is the --model value, if given.
+const argv = process.argv.slice(2);
+const model = argv.includes('--model') ? argv[argv.indexOf('--model') + 1] : 'claude-opus-5-5';
+const usage = {
+  input_tokens: 340,
+  cache_read_input_tokens: 48900,
+  cache_creation_input_tokens: 2900,
+  output_tokens: 640,
+  cache_creation: { ephemeral_5m_input_tokens: 2900, ephemeral_1h_input_tokens: 0 }
+};
+const modelUsage = {
+  [model]: { inputTokens: 340, outputTokens: 640, cacheReadInputTokens: 48900, cacheCreationInputTokens: 2900, costUSD: 0.0123 }
+};
 let prompt = process.argv.at(-1) || '';
 if (prompt === '-' || !prompt) prompt = await readFile(0, 'utf8');
 if (log) await appendFile(log, `${JSON.stringify({ prompt })}\n`);
@@ -14,7 +27,9 @@ if (answerFile) {
   console.log(JSON.stringify({
     result: (await readFile(answerFile, 'utf8')).trim(),
     total_cost_usd: 0.0123,
-    duration_ms: 1250
+    duration_ms: 1250,
+    usage,
+    modelUsage
   }));
 } else {
   const splitRef = prompt.includes('Tool use id: conversation-split')
@@ -53,6 +68,8 @@ if (answerFile) {
       citations
     }),
     total_cost_usd: 0.0123,
-    duration_ms: 1250
+    duration_ms: 1250,
+    usage,
+    modelUsage
   }));
 }
