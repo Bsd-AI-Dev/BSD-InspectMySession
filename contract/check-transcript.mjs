@@ -466,9 +466,14 @@ async function smokeTest(source, main, stats, opts, c) {
     c.add('WARN', 'parse-sum', `Start-load parts add up to ${sum}, not ${model.startLoad.total}.`, { usedBy: ['src/start-load.mjs:exactShares'], search: ['exactShares'] });
   } else c.pass();
 
-  const countedCalls = main.flatMap(r => (r.type === 'assistant' && Array.isArray(r.message?.content)) ? r.message.content : [])
-    .filter(b => b?.type === 'tool_use' && ['Read', 'Bash', 'Skill', 'WebFetch', 'WebSearch'].includes(b.name)).length;
-  if (countedCalls && !model.reads.length) {
+  const countedNames = main.flatMap(r => (r.type === 'assistant' && Array.isArray(r.message?.content)) ? r.message.content : [])
+    .filter(b => b?.type === 'tool_use' && ['Read', 'Bash', 'Skill', 'WebFetch', 'WebSearch'].includes(b.name)).map(b => b.name);
+  const countedCalls = countedNames.length;
+  if (countedCalls && !model.reads.length && countedNames.every(name => name === 'Bash')) {
+    // Commands that only run something (git status, npm test) and small outputs are not reads by design.
+    c.add('INFO', 'parse-no-reads', `${countedCalls} Bash calls and 0 reads: commands that only run something, and small outputs, are not counted as reads.`,
+      { effect: 'Expected when the session only ran commands. If one of them read a file, its program may be missing from the shell lists.', usedBy: ['src/shell-kind.mjs:classifyShellCommand'], search: ['classifyShellCommand', 'FILE_PROGRAMS'] });
+  } else if (countedCalls && !model.reads.length) {
     c.add('WARN', 'parse-no-reads', `${countedCalls} Read/Bash/Skill/Web tool calls but the parser found 0 reads.`,
       { effect: 'The reads list is empty.', usedBy: ['src/show-context.mjs:parseTranscript'], search: ['addRead', 'readInfo'] });
   } else c.pass();
