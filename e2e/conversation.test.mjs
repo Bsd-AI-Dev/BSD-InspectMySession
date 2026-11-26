@@ -1234,6 +1234,55 @@ test('Auto uses the session model while its cache is warm and Haiku once it has 
   }
 });
 
+test('the menu has Sessions, Settings and Ask log tabs, and a log row opens a cost popup', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
+  await timedSession(WARM, { ageMs: 60_000 });
+  const { env } = await timedHub('hub-tabs');
+  const url = await waitForUrl(start([], env, WARM));
+  await askPost(url, WARM, { question: 'First?' });
+  await askPost(url, WARM, { question: 'Second?' });
+  const cdp = await openCdp(`${url}?session=${WARM}`);
+  const visible = id => `(() => { const node = document.getElementById('${id}'); return Boolean(node && node.offsetParent); })()`;
+  try {
+    await waitForValue(cdp, 'document.querySelectorAll(".session").length > 0');
+    assert.deepEqual(await cdp.evaluate(`[...document.querySelectorAll('[role=tab]')].map(tab => tab.textContent.trim())`),
+      ['Sessions', 'Settings', 'Ask log']);
+    assert.equal(await cdp.evaluate(`document.querySelector('[role=tab][aria-selected=true]').textContent.trim()`), 'Sessions');
+    assert.equal(await cdp.evaluate(visible('sessions')), true);
+
+    await cdp.evaluate(`document.getElementById('tab-settings').click()`);
+    await waitForValue(cdp, visible('panel-settings'));
+    assert.equal(await cdp.evaluate(visible('sessions')), false);
+    await waitForValue(cdp, `document.getElementById('set-askModel').value === 'auto'`);
+    assert.match(await cdp.evaluate(`document.getElementById('panel-settings').textContent`), /Haiku 5\.5/);
+    await cdp.evaluate(`(() => {
+      const select = document.getElementById('set-askModel');
+      select.value = 'claude-haiku-5-5';
+      select.dispatchEvent(new Event('change'));
+      document.getElementById('settings-save').click();
+    })()`);
+    await waitForValue(cdp, `document.getElementById('settings-status').textContent === 'Saved'`);
+    assert.equal((await (await fetch(`${url}api/settings`)).json()).settings.askModel, 'claude-haiku-5-5');
+
+    await cdp.evaluate(`document.getElementById('tab-log').click()`);
+    await waitForValue(cdp, 'document.querySelectorAll(".ask-row").length === 2');
+    assert.match(await cdp.evaluate(`document.querySelector('.ask-row').textContent`), /Second\?/);
+    await cdp.evaluate(`document.querySelector('.ask-row').click()`);
+    await waitForValue(cdp, `document.getElementById('ask-detail').open`);
+    const detail = await cdp.evaluate(`document.getElementById('ask-detail').textContent`);
+    for (const text of ['Second?', 'Alpha source', 'Opus 5.5', 'Read from cache', '48,900', '$0.0123', 'cache is still warm']) {
+      assert.ok(detail.includes(text), `${text} in: ${detail}`);
+    }
+    await cdp.evaluate(`document.getElementById('ask-detail-close').click()`);
+    assert.equal(await cdp.evaluate(`document.getElementById('ask-detail').open`), false);
+    assert.deepEqual(cdp.exceptions, []);
+  } finally {
+    cdp.socket.close();
+    cdp.child.kill('SIGTERM');
+    await runCli(['--stop'], env);
+  }
+});
+
 test('the waiting popup names the model, the footer shows tokens, and Try again uses the session model', async t => {
   if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
   await timedSession(COLD, { ageMs: 3 * 60 * 60_000 });
