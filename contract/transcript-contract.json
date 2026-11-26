@@ -34,10 +34,13 @@
     "assistant": {
       "required": true,
       "missingSeverity": "FAIL",
-      "usedBy": ["src/show-context.mjs:parseTranscript", "src/show-context.mjs:buildConversation"],
+      "usedBy": ["src/show-context.mjs:parseTranscript", "src/show-context.mjs:buildConversation", "src/ask-model.mjs:lastRequest"],
       "mainThreadOnly": true,
       "fields": {
         "message.content": { "type": "string|array", "severity": "FAIL", "search": ["blocksOf"], "effect": "No assistant text or tool calls can be read." },
+        "timestamp": { "type": "string", "severity": "INFO", "search": ["last.timestamp"], "effect": "Auto model choice cannot tell how long the session has been idle, so it uses the session model (bsd-ims)." },
+        "message.model": { "type": "string", "severity": "INFO", "search": ["last.message.model"], "effect": "Auto model choice does not know the session model and uses the Claude Code default model (bsd-ims)." },
+        "message.usage.cache_creation.ephemeral_5m_input_tokens|message.usage.cache_creation.ephemeral_1h_input_tokens": { "type": "number", "severity": "INFO", "search": ["ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"], "effect": "The cache lifetime cannot be read from the session; the Settings value (5 minutes by default) is used (bsd-ims)." },
         "message.usage": { "type": "object", "severity": "FAIL", "search": ["totalUsage", "message?.usage", "usageSeen"], "effect": "No token counts: every read size becomes 0 and the start-load total is 0." },
         "message.usage.input_tokens": { "type": "number", "severity": "WARN", "search": ["input_tokens"], "effect": "Token totals are too low." },
         "message.usage.cache_read_input_tokens": { "type": "number", "severity": "WARN", "optional": true, "search": ["cache_read_input_tokens"], "effect": "Token totals are too low when caching is used." },
@@ -203,11 +206,12 @@
       { "flag": "--fork-session", "severity": "INFO" },
       { "flag": "--no-session-persistence", "severity": "INFO" },
       { "flag": "--tools", "severity": "INFO" },
-      { "flag": "--max-turns", "severity": "INFO" }
+      { "flag": "--max-turns", "severity": "INFO" },
+      { "flag": "--model", "severity": "WARN" }
     ],
-    "jsonResultFields": ["result", "total_cost_usd", "duration_ms"],
+    "jsonResultFields": ["result", "total_cost_usd", "duration_ms", "usage", "modelUsage"],
     "note": "Flags are only checked against 'claude --help'. Some may be hidden from help, so INFO means 'verify by hand'. The JSON result fields can only be confirmed by running a real ask.",
-    "search": ["--fork-session", "--no-session-persistence", "--max-turns", "total_cost_usd"],
+    "search": ["--fork-session", "--no-session-persistence", "--max-turns", "--model", "total_cost_usd", "modelUsage"],
     "effect": "The 'Where did this come from' button fails or returns nothing."
   }
 }
