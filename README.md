@@ -60,6 +60,8 @@ Invoke-WebRequest https://raw.githubusercontent.com/Bsd-AI-Dev/BSD-InspectMySess
 
 Change `C:\projects\sdlc` to a folder where you used Claude Code.
 
+By default it asks only about what is still open from the last test. Add `-Full` at the end to go through every question and check your 5 newest sessions.
+
 ## Use
 
 ### The session menu

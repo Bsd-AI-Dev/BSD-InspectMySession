@@ -1,11 +1,12 @@
 <#
   bsd-ims test run (version 0.2: one server, session menu with Settings and Ask log, theme button, waiting popup).
+  By default it checks only what is still open; add -Full for every question.
   1. Installs or updates bsd-ims with scripts/windows/install.ps1 from GitHub.
   2. Opens the newest session of a project folder in your browser.
   3. Checks by itself that a second run reuses the same server and that only one server runs.
-  4. Asks you a few yes/no questions about what you see in the browser.
+  4. Asks you yes/no questions about what you see in the browser (-Full: all of them; default: the open ones).
   5. Checks that "Stop server" in the menu stops the server.
-  6. Runs the transcript checker on your 5 newest sessions.
+  6. Runs the transcript checker (-Full: your 5 newest sessions; default: the sessions in -CheckSessions).
   Everything is saved to bsd-ims-test-report.txt on your Desktop and copied to the clipboard.
   The report has versions, counts, field names and file paths, not your conversation text.
   The private live-page links (they contain an access token) are replaced with <live URL>.
@@ -15,7 +16,9 @@
 #>
 param(
   [string]$ProjectFolder = 'C:\projects\sdlc',
-  [string]$Branch = 'main'
+  [string]$Branch = 'main',
+  [switch]$Full,
+  [string[]]$CheckSessions = @('24255504')
 )
 
 $ErrorActionPreference = 'Continue'
@@ -76,6 +79,17 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
 
   Write-Host ''
   Write-Host 'Look at the page that opened in your browser, then answer:' -ForegroundColor Cyan
+  if (-not $Full) {
+    Note ''
+    Note '== 4a. Open items only (run with -Full for every question)'
+    Write-Host 'In the menu, open the Settings tab, choose "Same as the session" and click Save.' -ForegroundColor Cyan
+    Write-Host 'Then, in the Conversation tab, select a sentence Claude wrote, click "Where did this come from?" and wait for the answer.' -ForegroundColor Cyan
+    [void](Ask 'Did the popup say "Set in Settings: the same model as the session"?')
+    [void](Ask 'Does the model at the bottom of the answer card match the session model?')
+    AskDetails 'Copy the model name shown at the bottom of the answer card here'
+    Write-Host 'In Settings, choose "Auto (recommended)" again and click Save.' -ForegroundColor Cyan
+    [void](Read-Host 'Press Enter when done')
+  } else {
   [void](Ask 'Is there a session menu on the left?')
   [void](Ask 'Are the sessions grouped by project name (for example sdlc, BSDEditor, wp-content)?')
   [void](Ask "Is the newest session of $ProjectFolder highlighted in the menu and shown on the right?")
@@ -105,6 +119,7 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
   Write-Host 'Click "Copy path" next to a session in the menu, then paste it here with Ctrl+V.' -ForegroundColor Cyan
   $copied = (Read-Host 'Pasted path').Trim().Trim('"')
   Note "copy path works: $(if ($copied -and (Test-Path -LiteralPath $copied)) { 'yes' } else { "NO ('$copied')" })"
+  }
 
   Note ''
   Note '== 4b. Ask log: models of the last 5 questions (no question text)'
@@ -131,13 +146,19 @@ if (-not (Test-Path -LiteralPath $ProjectFolder)) {
 
 # ------------------------------------------------------------ 6. checker
 Note ''
-Note '== 6. Transcript checker (5 newest sessions)'
 $checker = Join-Path (npm root -g) 'bsd-ims\contract\check-transcript.mjs'
-if (Test-Path -LiteralPath $checker) {
+if (-not (Test-Path -LiteralPath $checker)) {
+  Note "Checker not found at $checker"
+} elseif ($Full) {
+  Note '== 6. Transcript checker (5 newest sessions)'
   Note (Hide-Url ((node $checker --latest 5 2>&1 | Out-String).Trim()))
   Note "checker exit code: $LASTEXITCODE"
 } else {
-  Note "Checker not found at $checker"
+  Note "== 6. Transcript checker (sessions: $($CheckSessions -join ', '))"
+  foreach ($id in $CheckSessions) {
+    Note (Hide-Url ((node $checker $id 2>&1 | Out-String).Trim()))
+    Note "checker exit code: $LASTEXITCODE"
+  }
 }
 
 # ------------------------------------------------------------ report
