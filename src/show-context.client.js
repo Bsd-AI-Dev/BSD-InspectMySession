@@ -806,7 +806,23 @@ function hideWait() {
   $('ask-wait').classList.remove('on');
 }
 $('ask-cancel').onclick = () => askController?.abort();
+// The model the server will use and why, shown in the popup while waiting.
+async function showPlannedModel(body) {
+  $('ask-wait-model').textContent = '';
+  if (body.model) {
+    $('ask-wait-model').textContent = `Using ${body.model}: asked again with the session model`;
+    return;
+  }
+  try {
+    const plan = await (await fetch('ask-model', { cache: 'no-store' })).json();
+    if (!$('ask-wait').classList.contains('on')) return;
+    $('ask-wait-model').textContent = `Using ${plan.label || 'your Claude Code default model'}: ${plan.reason}`;
+    if (plan.timeoutMinutes) $('ask-wait-limit').textContent = String(plan.timeoutMinutes);
+  } catch {}
+}
+let lastAsk = null;
 async function runAsk(body, label, question) {
+  lastAsk = { body, label, question };
   if (!DATA.live) {
     $('answer').innerHTML = `${cardHeading(question)}
       <p>Asking needs the live page. Run bsd-ims without --static.</p>`;
@@ -816,6 +832,7 @@ async function runAsk(body, label, question) {
   const controller = new AbortController();
   askController = controller;
   showWait();
+  showPlannedModel(body);
   try {
     const response = await fetch('ask', {
       method: 'POST',
@@ -941,14 +958,34 @@ function showAnswer(data, label, question) {
   const sessionId = esc(DATA.sessionId.slice(0, 8));
   const seconds = (data.durationMs / 1000).toFixed(1);
   const cost = Number(data.costUsd).toFixed(4);
-  const footer = `Answered by a fork of session ${sessionId} in ${seconds} s, $${cost}. ` +
-    'The original session does not change.';
+  // bsd-ims: model and tokens, and "Try again" with the session model when a cheaper model found no source.
+  const count = value => Number(value || 0).toLocaleString('en-US');
+  const t = data.tokens;
+  const tokens = t ? ` · ${count(t.input + t.cacheRead + t.cacheWrite)} tokens in (${count(t.cacheRead)} from cache, ` +
+    `${count(t.cacheWrite)} written to cache, ${count(t.input)} new) · ${count(t.output)} out` : '';
+  const footer = `Answered by a fork of session ${sessionId} in ${seconds} s` +
+    `${data.model ? ` with ${esc(data.model)}` : ''}${tokens} · $${cost}. The original session does not change.`;
+  const sessionModel = data.choice?.sessionModel;
+  const retry = sessionModel && data.model && data.model !== sessionModel && !data.citations.some(cite => cite.quoteFound)
+    ? `<button type="button" class="a-retry" id="ask-retry">Try again with ${esc(data.choice.sessionLabel || sessionModel)}</button>`
+    : '';
   card.innerHTML = `${cardHeading(question, data.citations.length)}
     <div class="a-sel">${esc(label)}</div>
     <p class="a-sum">${esc(data.summary)}</p>
     <ol class="cites">${citations}</ol>
-    <div class="a-foot"><span>${footer}</span></div>`;
+    <div class="a-foot"><span>${footer}</span>${retry}</div>`;
   card.querySelector('.a-close').onclick = closeAnswer;
+  if (retry) {
+    $('ask-retry').onclick = () => {
+      const again = lastAsk;
+      const selection = card.querySelector('.a-sel')?.textContent || again.label;
+      conv.querySelectorAll('.tool.cited').forEach(tool => tool.classList.remove('cited'));
+      document.body.classList.remove('answered');
+      $('wires').innerHTML = '';
+      waitingCard(again.question, selection);
+      runAsk({ ...again.body, model: sessionModel }, again.label, again.question);
+    };
+  }
   for (const button of card.querySelectorAll('[data-step]')) button.onclick = () => stepCitation(Number(button.dataset.step));
   for (const item of card.querySelectorAll('.cite')) onActivate(item, () => activateCitation(Number(item.dataset.n), true));
   activateCitation(1);

@@ -1234,6 +1234,52 @@ test('Auto uses the session model while its cache is warm and Haiku once it has 
   }
 });
 
+test('the waiting popup names the model, the footer shows tokens, and Try again uses the session model', async t => {
+  if (!chrome) return t.skip('Chrome was not found. Set CHROME_PATH or install Chrome or Chromium.');
+  await timedSession(COLD, { ageMs: 3 * 60 * 60_000 });
+  const answerFile = path.join(temp, 'not-found-answer.json');
+  await writeFile(answerFile, JSON.stringify({
+    summary: 'Nothing matched.',
+    citations: [{ ref: 'r0.1', quote: 'A quote that is not in the file', kind: 'copied', explanation: 'Guess.' }]
+  }));
+  const { dir, env } = await timedHub('hub-retry', { SHOW_CONTEXT_FAKE_WAIT_MS: '600', SHOW_CONTEXT_FAKE_ANSWER: answerFile });
+  const url = await waitForUrl(start([], env, COLD));
+  const cdp = await openCdp(sessionPage(url, COLD));
+  try {
+    await waitForValue(cdp, 'document.readyState === "complete" && Boolean(document.getElementById("m-conv"))');
+    await cdp.evaluate(`(() => {
+      document.getElementById('m-conv').click();
+      const items = document.querySelectorAll('.msg.assistant .text li');
+      const range = document.createRange();
+      range.setStart(items[0].firstChild, 0);
+      range.setEnd(items[1].firstChild, items[1].firstChild.length);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    })()`);
+    await waitForValue(cdp, 'document.getElementById("ask").classList.contains("on")');
+    await cdp.evaluate('document.getElementById("ask-why").click()');
+    await waitForValue(cdp, `document.getElementById('ask-wait-model').textContent.includes('Haiku 5.5')`);
+    assert.match(await cdp.evaluate(`document.getElementById('ask-wait-model').textContent`), /expired/);
+    await waitForValue(cdp, `document.querySelector('#answer .a-foot') ? true : false`, 5000);
+    const footer = await cdp.evaluate(`document.querySelector('#answer .a-foot').textContent`);
+    for (const text of ['claude-haiku-5-5', '52,140 tokens in', '48,900 from cache', '640 out', '$0.0123']) {
+      assert.ok(footer.includes(text), `${text} in: ${footer}`);
+    }
+    assert.equal(await cdp.evaluate(`document.getElementById('ask-retry').textContent`), 'Try again with Opus 5.5');
+    await cdp.evaluate(`document.getElementById('ask-retry').click()`);
+    await waitForValue(cdp, `document.getElementById('ask-wait').classList.contains('on')`);
+    await waitForValue(cdp, `document.querySelector('#answer .a-foot')?.textContent.includes('claude-opus-5-5')`, 5000);
+    assert.deepEqual((await fakeRuns(dir)).map(run => modelFlag(run.argv)), ['claude-haiku-5-5', 'claude-opus-5-5']);
+    assert.equal(await cdp.evaluate(`document.getElementById('ask-retry')`), null, 'no second retry once the session model answered');
+    assert.deepEqual(cdp.exceptions, []);
+  } finally {
+    cdp.socket.close();
+    cdp.child.kill('SIGTERM');
+    await runCli(['--stop'], env);
+  }
+});
+
 test('a missing Claude Code CLI gives an answer that says how to fix it', async () => {
   const hubDir = path.join(temp, 'hub-missing-claude');
   await mkdir(hubDir, { recursive: true });
